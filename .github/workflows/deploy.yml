@@ -68,7 +68,7 @@ jobs:
           OCI_USER: ${{ secrets.OCI_USER }}
           OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
           GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
-          OCI_APP_DIR: ${{ vars.OCI_APP_DIR || '/home/medicare-ai' }}
+          OCI_APP_DIR: ${{ vars.OCI_APP_DIR || '/home/ubuntu/medicare-ai' }}
         run: |
           set -euo pipefail
           prefix="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
