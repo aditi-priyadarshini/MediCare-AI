@@ -13,8 +13,8 @@ cd "$(dirname "$0")"
 read -r token
 printf '%s' "$token" | sudo docker login ghcr.io -u "$user" --password-stdin
 
-export IMAGE_TAG="$tag" IMAGE_PREFIX="$prefix"
-compose=(sudo -E docker compose -f docker-compose.prod.yml)
+# Some sudo configs ignore -E, so pass the image settings explicitly via `env`.
+compose=(sudo env IMAGE_TAG="$tag" IMAGE_PREFIX="$prefix" docker compose -f docker-compose.prod.yml)
 
 "${compose[@]}" pull
 # `up` runs the one-shot migrate service first and only starts the app if it succeeds.
