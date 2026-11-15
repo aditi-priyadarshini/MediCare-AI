@@ -295,9 +295,7 @@ def list_schedules(medication_id: uuid.UUID, user: CurrentUser, db: DbDep):
     ).all()
 
 
-@router.post(
-    "/medications/{medication_id}/schedules", response_model=ScheduleOut, status_code=201
-)
+@router.post("/medications/{medication_id}/schedules", response_model=ScheduleOut, status_code=201)
 def create_schedule(
     medication_id: uuid.UUID, body: ScheduleIn, request: Request, user: CurrentUser, db: DbDep
 ):
@@ -487,9 +485,7 @@ def log_extra_dose(body: AdHocDoseIn, request: Request, user: CurrentUser, db: D
 
 
 @router.post("/doses/{dose_id}/take", response_model=DoseOut)
-def take_dose(
-    dose_id: uuid.UUID, body: DoseTakeIn, request: Request, user: CurrentUser, db: DbDep
-):
+def take_dose(dose_id: uuid.UUID, body: DoseTakeIn, request: Request, user: CurrentUser, db: DbDep):
     dose, name, text_ = _one_dose(db, dose_id, user)
     now = svc.utcnow()
     svc.mark_taken(db, dose, body.taken_at, body.note, now)
@@ -499,9 +495,7 @@ def take_dose(
 
 
 @router.post("/doses/{dose_id}/skip", response_model=DoseOut)
-def skip_dose(
-    dose_id: uuid.UUID, body: DoseSkipIn, request: Request, user: CurrentUser, db: DbDep
-):
+def skip_dose(dose_id: uuid.UUID, body: DoseSkipIn, request: Request, user: CurrentUser, db: DbDep):
     dose, name, text_ = _one_dose(db, dose_id, user)
     now = svc.utcnow()
     svc.mark_skipped(db, dose, body.note, now)

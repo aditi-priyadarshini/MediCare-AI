@@ -225,10 +225,12 @@ def _reference_notes(db: Session, question: str) -> list[ev.ReferenceNote]:
     if not ids:
         return []
     rules = safety_svc.load_rules(db, None, ids)
-    counterparts = {
+    # Drug-drug pairs are stored in sorted-id order, so the ingredient the patient mentioned
+    # can be on either side of a rule: load every ingredient the rules mention.
+    mentioned = {uuid.UUID(r.ingredient_id) for r in rules} | {
         uuid.UUID(r.counterpart_ingredient_id) for r in rules if r.counterpart_ingredient_id
     }
-    names = safety_svc.load_ingredients(db, ids | counterparts)
+    names = safety_svc.load_ingredients(db, ids | mentioned)
     rules.sort(key=lambda r: (-eng.SEVERITY_RANK[r.severity], r.description))
     out = []
     for r in rules:

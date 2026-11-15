@@ -92,3 +92,13 @@ cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 
 `backend/app/{core,identity,patients,records,audit,admin,api}` modular monolith (see `docs/ARCHITECTURE.md`);
 `frontend/{app,components,lib}`; decisions in `docs/ARCHITECTURE.md` (ADR-006..008).
+
+## Deployment (GitHub Actions to OCI)
+
+Pushing to `main` runs `.github/workflows/deploy.yml`: CI (`ci.yml`) must pass, then the backend and frontend images are built and pushed to GHCR as `ghcr.io/<owner>/medicare-ai-{backend,frontend}` (tags `latest` and the commit SHA), then the server is updated over SSH and the deploy waits for both services to report healthy. A failed health check fails the workflow and prints the service logs.
+
+Repository secrets: `OCI_HOST`, `OCI_USER`, `OCI_SSH_KEY` (private deploy key), `GHCR_PULL_TOKEN` (a token with `read:packages`). Optional repository variable `OCI_APP_DIR` (default `/home/ubuntu/medicare-ai`).
+
+One-time server setup: install Docker with the compose plugin, let `OCI_USER` use `sudo docker`, and create `OCI_APP_DIR/.env` with `POSTGRES_PASSWORD`, `SECRET_KEY`, `FRONTEND_ORIGINS` (your public https origin), `SMTP_HOST` (and optionally `SMTP_PORT`, `SMTP_FROM`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and for the assistant `LLM_PROVIDER=anthropic`, `LLM_API_KEY`, `LLM_MODEL`; without them the assistant runs in evidence-only mode). The frontend listens on `127.0.0.1:3000`; put a TLS reverse proxy in front of it. Production refuses to start without `COOKIE_SECURE`, a real `SECRET_KEY` and a non-memory email backend. The app's SMTP client has no login support, so `SMTP_HOST` must be a relay that accepts mail from the server (for example a local Postfix relay).
+
+To roll back, re-run the workflow on an earlier commit, or on the server run `IMAGE_PREFIX=ghcr.io/<owner> IMAGE_TAG=<old-sha> docker compose -f docker-compose.prod.yml up -d`.
