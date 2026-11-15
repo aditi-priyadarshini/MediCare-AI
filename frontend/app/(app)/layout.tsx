@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Alert, Button, PageLoading } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth-context";
+import { I18nProvider } from "@/lib/i18n";
 import { ProfileLoader, useProfile } from "@/lib/profile-context";
 
 /** Routes patients to onboarding until the required consents are on record. */
@@ -21,6 +22,12 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 
   if (profile.onboarding_completed === onboarding) return <PageLoading label="Redirecting" />;
   return onboarding ? <>{children}</> : <AppShell>{children}</AppShell>;
+}
+
+/** Feeds the saved language preference into the translation context. */
+function LocaleBridge({ children }: { children: React.ReactNode }) {
+  const { profile } = useProfile();
+  return <I18nProvider language={profile.preferred_language}>{children}</I18nProvider>;
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -46,7 +53,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       )}
     >
-      <OnboardingGate>{children}</OnboardingGate>
+      <LocaleBridge>
+        <OnboardingGate>{children}</OnboardingGate>
+      </LocaleBridge>
     </ProfileLoader>
   );
 }

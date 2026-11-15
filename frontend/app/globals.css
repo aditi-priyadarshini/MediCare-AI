@@ -5,7 +5,7 @@
 :root {
   --brand-900: #123b43;
   --navy-900: #172c3d;
-  --teal-700: #167c78;
+  --teal-700: #157873; /* darkened from #167c78 so teal text on mint passes WCAG AA (4.74:1) */
   --teal-500: #38bfa7;
   --mint-100: #e9f5f2;
   --canvas: #f5f7fa;
@@ -51,6 +51,18 @@ html[data-reduce-motion="true"] *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* Hindi and Odia: scripts with taller marks need more line height, and Inter has no glyphs for them. */
+html[data-ui-lang="hi"] body,
+html[data-ui-lang="or"] body {
+  line-height: 1.65;
+}
+:lang(hi) {
+  font-family: "Noto Sans Devanagari", "Nirmala UI", "Mukta", system-ui, sans-serif;
+}
+:lang(or) {
+  font-family: "Noto Sans Oriya", "Nirmala UI", "Kalinga", system-ui, sans-serif;
 }
 
 body {

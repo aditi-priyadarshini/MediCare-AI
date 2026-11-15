@@ -13,7 +13,8 @@ Synthetic data only. Not a medical device and not for real patient records.
 | 3 | Medications: catalogue baseline, prescriptions vs self-reported medicines, schedules, dose logs, supplies (lot/expiry), refill and expiry alerts, reminder worker | Done (see notes) |
 | 4 | Medicine safety: ingredient catalogue, curated sourced rules, drug/food/condition/allergy checks, candidate alternatives with dated prices, side-effect notes, authenticity adapter (unsupported by default) | Done (see notes) |
 | 5 | AI assistant: consent-gated retrieval of the patient's own records, cited evidence, safety policy, answer validation, chat sessions | Done (see notes) |
-| 6+ | Voice, discovery, sharing/emergency | Not started |
+| 6 | Voice and accessibility: speech adapters, English/Hindi/Odia UI strings, quick display toggles, voice command guardrails | Done (see notes) |
+| 7+ | Discovery, sharing/emergency | Not started |
 
 Phase 2 notes:
 - Uploads are identified by magic bytes (the client's Content-Type and filename are never trusted), capped at `MAX_UPLOAD_BYTES` (10 MB), stored under random keys in `STORAGE_DIR`, and only ever served back to their owner as attachments. Docker Compose mounts a named volume for them.
@@ -55,6 +56,18 @@ Phase 5 notes:
 - Each question is answered independently (no earlier answers are fed back). Chats can be deleted (hard delete); `chat_context_access_logs` keeps ids and counts only.
 - Not built: streaming, other languages for server text (the `language` field only asks the model to reply in en/hi/or; Phase 6), retrieval over uploaded-file text/OCR.
 - Endpoints: `/assistant/status`, `/assistant/sessions` (+ `/{id}`, `/{id}/context`, `/{id}/messages`), `/assistant/messages/{id}/evidence`.
+
+Phase 6 notes:
+- **Voice is optional and off by default.** The `voice_enabled` accessibility preference (My Health > Accessibility) turns on the microphone buttons and read-aloud buttons. Every screen works without them.
+- **Speech lives behind adapters** (`frontend/lib/speech.ts`): one-shot recognition and queued text-to-speech via the browser's Web Speech API. A server-side provider could replace them without touching components. Locales are `en-IN`, `hi-IN`, `or-IN`.
+- **Privacy:** browser speech recognition is normally done by the browser vendor's cloud service, so the UI says so next to the microphone. MediCare AI receives nothing until the patient presses Send.
+- **Dictation never submits.** A transcript is put in the question box as editable text. The patient reads it and presses Send.
+- **Voice commands can only open a page.** `frontend/lib/voice-commands.ts` classifies a transcript as navigate, blocked, emergency or unknown, and has no access to the API. Logging a dose, adding, removing, stopping or changing anything is answered with "use the buttons on the Medicines page". Emergency words show a visible Call 112 link and do nothing else. Two pages named at once, or anything unclear, does nothing. Navigation still needs a tap on Open (Escape or Cancel dismisses it).
+- **Read aloud never performs an action.** Assistant answers can be read aloud with citation markers removed. The doses card reads today's pending doses plus a reminder to check name, strength and time on screen. Text is read only in a voice for its own language (judged by script): with no Hindi or Odia voice installed it says so instead of mispronouncing medical text in another voice.
+- **Languages:** UI strings are in `frontend/lib/i18n/{en,hi,or}.ts` and fall back to English per string. **The Hindi and Odia strings are machine-generated and have not been reviewed by a native speaker**, and the UI says so on every translated screen. Only the app shell, navigation, accessibility settings, voice features, the assistant's input and safety text, and the dose reading are translated; other pages remain in English. The document root stays `lang="en"` and translated strings carry their own `lang`, so screen readers choose the right voice. The assistant now creates chats in the patient's preferred language.
+- **Display:** header toggles for larger text and high contrast save to the profile. `--teal-700` was darkened from `#167C78` to `#157873` because teal text on the mint tint was 4.49:1; contrast of the main text/background pairs, in normal and high-contrast mode, is at least 4.5:1. The mobile navigation was fixed to seven columns (it had six for seven items).
+- **Not done:** native-speaker review of Hindi and Odia, voice confirmation by speaking "yes" (confirmation is a tap), server-side speech providers, translation of the remaining pages and of server-generated text, a manual screen-reader pass with NVDA/VoiceOver/TalkBack and a real-device check of Hindi/Odia voices (only automated tests were run).
+- No backend change was needed; `voice_enabled` already existed.
 
 Deferred from Phase 1: optional phone OTP, caregiver delegation. Onboarding still omits a "current medicines" step; medicines are added from the Medicines page.
 

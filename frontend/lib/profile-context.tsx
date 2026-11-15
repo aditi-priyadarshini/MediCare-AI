@@ -21,7 +21,9 @@ function useApplyAccessibility(profile: Profile | null) {
     root.dataset.largeText = String(Boolean(p?.large_text));
     root.dataset.contrast = p?.high_contrast ? "high" : "normal";
     root.dataset.reduceMotion = String(Boolean(p?.reduce_motion));
-    root.lang = profile?.preferred_language ?? "en";
+    // Stays "en": most pages are English, and translated strings are marked with their own lang
+    // (see <Tr> in lib/i18n). A Hindi root with English text would be read with the wrong voice.
+    root.lang = "en";
   }, [profile]);
 }
 
@@ -50,6 +52,11 @@ export function ProfileLoader({
     },
   };
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
+}
+
+/** Like useProfile, but returns null outside a ProfileLoader (shared components and tests). */
+export function useOptionalProfile(): ProfileValue | null {
+  return useContext(ProfileContext);
 }
 
 export function useProfile(): ProfileValue {

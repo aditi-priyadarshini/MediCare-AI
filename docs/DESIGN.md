@@ -19,7 +19,7 @@ Primary palette: **Clinical Teal / Deep Navy / Soft Mint**.
 |---|---|---|
 | `brand-900` | `#123B43` | Primary brand, deep sidebar |
 | `navy-900` | `#172C3D` | Headings, dark navigation |
-| `teal-700` | `#167C78` | Primary actions and links |
+| `teal-700` | `#157873` | Primary actions and links (darkened from `#167C78` in Phase 6 so teal text on `mint-100` passes WCAG AA) |
 | `teal-500` | `#38BFA7` | Positive accent, charts |
 | `mint-100` | `#E9F5F2` | Soft highlighted surfaces |
 | `canvas` | `#F5F7FA` | Main application background |

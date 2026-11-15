@@ -3,11 +3,14 @@
 import { Check, Clock, Plus, RotateCcw, SkipForward } from "lucide-react";
 import { useState } from "react";
 import { Alert, Button, Card, EmptyState, SelectField, Skeleton } from "@/components/ui/primitives";
+import { ReadAloudButton } from "@/components/voice/ReadAloudButton";
 import { api, errorMessage } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { useAsync } from "@/lib/hooks";
-import { dayLabel, doseState, doseWhen, formatInstant, groupDosesByDay, type DoseState } from "@/lib/medications";
+import { useT } from "@/lib/i18n";
+import { dayKey, dayLabel, doseState, doseWhen, formatInstant, groupDosesByDay, type DoseState } from "@/lib/medications";
 import { useProfile } from "@/lib/profile-context";
+import { SPEECH_LOCALE } from "@/lib/speech";
 import type { Dose, Medication, Page } from "@/lib/types";
 
 const STATE_STYLE: Record<DoseState, { label: string; cls: string }> = {
@@ -22,6 +25,8 @@ const DAY = 86_400_000;
 
 export function DosesCard({ version, onChange }: { version: number; onChange: () => void }) {
   const { profile } = useProfile();
+  const { t, language } = useT();
+  const voiceOn = profile.accessibility_preferences.voice_enabled;
   const tz = profile.timezone;
   const now = new Date();
   const list = useAsync(() => {
@@ -67,6 +72,26 @@ export function DosesCard({ version, onChange }: { version: number; onChange: ()
   const active = (meds.data?.items ?? []).filter((m) => m.status === "active");
   const medOptions = [{ value: "", label: "Choose a medicine" }, ...active.map((m) => ({ value: m.id, label: m.display_name }))];
 
+  // Pending doses for today, in time order. Reading them aloud is only a reminder: the same
+  // doses are on screen and only the patient’s own tap ever marks one as taken.
+  const todayKey = dayKey(now, tz);
+  const waiting = (list.data?.items ?? [])
+    .filter((d) => d.status === "pending" && d.scheduled_at !== null && dayKey(d.scheduled_at, tz) === todayKey)
+    .sort((a, b) => a.scheduled_at!.localeCompare(b.scheduled_at!));
+  const spoken = [
+    t("doses.intro"),
+    ...(waiting.length === 0
+      ? [t("doses.none")]
+      : waiting.map((d) =>
+          t("doses.line", {
+            time: new Intl.DateTimeFormat(SPEECH_LOCALE[language], { hour: "numeric", minute: "2-digit", hour12: true, timeZone: tz }).format(new Date(d.scheduled_at!)),
+            name: d.medication_name ?? "",
+            dose: d.dose_text ? ` ${d.dose_text}` : "",
+          }),
+        )),
+    t("doses.reminder"),
+  ].join(" ");
+
   return (
     <Card aria-labelledby="doses-heading">
       <h2 id="doses-heading" className="mb-1 flex items-center gap-2 font-semibold text-navy-900">
@@ -75,6 +100,9 @@ export function DosesCard({ version, onChange }: { version: number; onChange: ()
       <p className="mb-4 text-sm text-ink-soft">
         A dose is only marked as taken when you tell us you took it. Reminders never do this for you.
       </p>
+      {voiceOn && list.data && (
+        <ReadAloudButton text={spoken} language={language} label={t("doses.readAloud")} className="mb-3" />
+      )}
       {error && (
         <Alert tone="danger" className="mb-3">
           {error}

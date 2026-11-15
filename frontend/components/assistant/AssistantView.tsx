@@ -5,9 +5,14 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { ContextControls } from "@/components/assistant/ContextControls";
 import { EvidenceList } from "@/components/assistant/EvidenceList";
 import { Alert, Button, Card, EmptyState, PageLoading } from "@/components/ui/primitives";
+import { ReadAloudButton } from "@/components/voice/ReadAloudButton";
+import { VoiceInputButton } from "@/components/voice/VoiceInputButton";
 import { api, errorMessage } from "@/lib/api-client";
 import { MODE_NOTE, splitCitations } from "@/lib/assistant";
 import { useAsync } from "@/lib/hooks";
+import { Tr, useT } from "@/lib/i18n";
+import { useOptionalProfile } from "@/lib/profile-context";
+import { scriptLanguage, speakableAnswer } from "@/lib/speech";
 import type {
   AskResult,
   AssistantStatus,
@@ -45,18 +50,25 @@ function AnswerText({ message }: { message: ChatMessage }) {
 
 function Bubble({ message }: { message: ChatMessage }) {
   const mine = message.role === "user";
+  const voice = useOptionalProfile()?.profile.accessibility_preferences.voice_enabled ?? false;
+  const spoken = speakableAnswer(message.content);
   return (
     <div className={mine ? "ml-auto max-w-[85%]" : "mr-auto max-w-[95%]"}>
       <div className={mine ? "rounded-lg bg-teal-700 p-3 text-white" : "rounded-lg border border-line bg-surface p-3"}>
         {mine ? <p className="whitespace-pre-wrap">{message.content}</p> : <AnswerText message={message} />}
       </div>
       {!mine && message.mode && <p className="mt-1 text-xs text-ink-soft">{MODE_NOTE[message.mode]}</p>}
+      {!mine && voice && <ReadAloudButton text={spoken} language={scriptLanguage(spoken)} />}
       {!mine && <EvidenceList messageId={message.id} items={message.evidence} />}
     </div>
   );
 }
 
 export function AssistantView() {
+  const { t } = useT();
+  const profile = useOptionalProfile()?.profile;
+  const language = profile?.preferred_language ?? "en";
+  const voiceOn = profile?.accessibility_preferences.voice_enabled ?? false;
   const status = useAsync(() => api<AssistantStatus>("/assistant/status"), []);
   const sessions = useAsync(() => api<Page<ChatSessionBrief>>("/assistant/sessions?limit=50"), []);
   const [detail, setDetail] = useState<ChatSessionDetail | null>(null);
@@ -86,7 +98,7 @@ export function AssistantView() {
 
   const create = () =>
     guard(async () => {
-      setDetail(await api<ChatSessionDetail>("/assistant/sessions", { method: "POST", body: {} }));
+      setDetail(await api<ChatSessionDetail>("/assistant/sessions", { method: "POST", body: { language } }));
       await sessions.reload();
     });
 
@@ -133,7 +145,7 @@ export function AssistantView() {
     <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
       <aside aria-label="Your chats" className="space-y-3">
         <Button onClick={create} loading={busy && !detail} fullWidth>
-          New chat
+          {t("assistant.newChat")}
         </Button>
         <ul className="space-y-1">
           {(sessions.data?.items ?? []).map((s) => (
@@ -183,7 +195,7 @@ export function AssistantView() {
               </div>
               <form onSubmit={send} className="flex gap-2">
                 <label htmlFor="ask" className="sr-only">
-                  Your question
+                  {t("assistant.ask.label")}
                 </label>
                 <textarea
                   id="ask"
@@ -191,19 +203,24 @@ export function AssistantView() {
                   onChange={(e) => setQuestion(e.target.value)}
                   maxLength={2000}
                   rows={2}
-                  placeholder="Ask about your records"
+                  placeholder={t("assistant.ask.placeholder")}
                   className="min-h-[44px] flex-1 rounded-lg border border-line p-2"
                 />
                 <Button type="submit" loading={busy} disabled={!question.trim()}>
-                  <Send className="h-4 w-4" aria-hidden /> Send
+                  <Send className="h-4 w-4" aria-hidden /> {t("assistant.send")}
                 </Button>
               </form>
+              {voiceOn && (
+                <VoiceInputButton
+                  language={language}
+                  onText={(text) => setQuestion((q) => `${q ? `${q} ` : ""}${text}`.slice(0, 2000))}
+                />
+              )}
             </Card>
           </>
         )}
         <p className="text-xs text-ink-soft">
-          Information from your recorded data, not medical advice. It can’t diagnose anything or tell you what to take.
-          In an emergency call your local emergency number (112 in India).
+          <Tr k="assistant.notAdvice" /> <Tr k="assistant.emergency" />
         </p>
       </div>
     </div>

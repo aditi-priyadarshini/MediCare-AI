@@ -238,6 +238,9 @@ Accepted (Phase 5). Retrieval is fixed, owner-scoped code gated by the `ai_conte
 ### ADR-010: Evidence-only mode is first class
 Accepted (Phase 5). `LLM_PROVIDER=none` is the default and a supported configuration, so the demo works offline and a provider outage degrades to listing records rather than failing. The provider sits behind `LLMProvider` (ADR-005).
 
+### ADR-011: Speech through browser adapters; voice can navigate, never change data
+Accepted (Phase 6). Recognition and synthesis use the Web Speech API behind `lib/speech.ts`, so no audio reaches MediCare AI servers and a provider can be swapped in later. Browser recognition may use the vendor's cloud, which the UI discloses. Voice is opt-in (`voice_enabled`). Spoken commands are classified by a pure function that can only yield navigate / blocked / emergency / unknown, so voice cannot alter medicine data by construction. Text is read only in a voice matching its language. Consequence: Odia recognition and voices depend on the device and are often missing; the UI says so and falls back to typing.
+
 ## 12. Operational requirements
 
 - `/health/live` and `/health/ready` endpoints.

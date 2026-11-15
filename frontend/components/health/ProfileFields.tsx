@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckboxField, SelectField, TextField } from "@/components/ui/primitives";
+import { useT } from "@/lib/i18n";
 import type { BloodGroup, Language, ProfileInput } from "@/lib/types";
 
 const BLOOD = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -89,23 +90,25 @@ export function PersonalFields({
 }
 
 export function PreferenceFields({ draft, setDraft }: { draft: Draft; setDraft: SetDraft }) {
+  const { t } = useT();
   const a = draft.accessibility_preferences;
   const setA = (patch: Partial<typeof a>) =>
     setDraft((d) => ({ ...d, accessibility_preferences: { ...d.accessibility_preferences, ...patch } }));
   return (
     <div className="space-y-5">
       <SelectField
-        label="Preferred language"
+        label={t("a11y.language")}
         value={draft.preferred_language}
         onChange={(e) => setDraft((d) => ({ ...d, preferred_language: e.target.value as Language }))}
         options={LANGS}
-        hint="Your choice is saved. Hindi and Odia screens arrive in a later release; English is shown until then."
+        hint={t("a11y.language.hint")}
       />
       <fieldset className="space-y-3">
-        <legend className="text-sm font-medium text-ink">Accessibility</legend>
-        <CheckboxField label="Larger text" description="Increases text size across the app." checked={a.large_text} onChange={(e) => setA({ large_text: e.target.checked })} />
-        <CheckboxField label="High contrast" description="Stronger borders and text colours." checked={a.high_contrast} onChange={(e) => setA({ high_contrast: e.target.checked })} />
-        <CheckboxField label="Reduce motion" description="Turns off animations." checked={a.reduce_motion} onChange={(e) => setA({ reduce_motion: e.target.checked })} />
+        <legend className="text-sm font-medium text-ink">{t("a11y.title")}</legend>
+        <CheckboxField label={t("a11y.largeText")} description={t("a11y.largeText.desc")} checked={a.large_text} onChange={(e) => setA({ large_text: e.target.checked })} />
+        <CheckboxField label={t("a11y.contrast")} description={t("a11y.contrast.desc")} checked={a.high_contrast} onChange={(e) => setA({ high_contrast: e.target.checked })} />
+        <CheckboxField label={t("a11y.motion")} description={t("a11y.motion.desc")} checked={a.reduce_motion} onChange={(e) => setA({ reduce_motion: e.target.checked })} />
+        <CheckboxField label={t("a11y.voice")} description={t("a11y.voice.desc")} checked={a.voice_enabled} onChange={(e) => setA({ voice_enabled: e.target.checked })} />
       </fieldset>
     </div>
   );

@@ -111,6 +111,12 @@ Phase 5 controls: consent plus per-chat switches gate every record read; evidenc
 - Emergency medical summary is minimum necessary and consent-controlled.
 - Do not promise emergency response time.
 
+### Voice (Phase 6)
+- Voice is opt-in and optional. Dictated text is only a draft in a text box; the patient presses Send.
+- Browser speech recognition may send audio to the browser vendor. The UI states this beside the microphone; MediCare AI stores no audio and logs no transcripts.
+- Voice commands cannot call the API, log doses or change records. Emergency phrases only show a Call 112 link.
+- Text is never read aloud in a voice for a different language.
+
 ## 10. Privacy and regulatory review
 
 This is an academic specification, not legal advice or a compliance certification. Before real deployment, review applicable Indian data protection requirements, health-data obligations, medical-device/software classification, telemedicine rules, pharmacy/medicine regulations, provider contracts and consent requirements with qualified counsel and domain professionals. Determine applicable commencement dates and obligations at launch time.
