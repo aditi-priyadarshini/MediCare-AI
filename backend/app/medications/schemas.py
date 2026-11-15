@@ -124,9 +124,9 @@ class MedicationIn(BaseModel):
     refill_threshold_days: int = Field(default=7, ge=0, le=90)
 
     _dates = field_validator("start_date", "end_date")(_sane_date)
-    _clean_text = field_validator(
-        "strength_text", "form", "dose_text", "instructions", "reason"
-    )(_clean)
+    _clean_text = field_validator("strength_text", "form", "dose_text", "instructions", "reason")(
+        _clean
+    )
 
     @field_validator("display_name")
     @classmethod
@@ -161,9 +161,9 @@ class MedicationPatch(BaseModel):
     status: MedicationStatus | None = None
 
     _dates = field_validator("start_date", "end_date")(_sane_date)
-    _clean_text = field_validator(
-        "strength_text", "form", "dose_text", "instructions", "reason"
-    )(_clean)
+    _clean_text = field_validator("strength_text", "form", "dose_text", "instructions", "reason")(
+        _clean
+    )
 
     @field_validator("display_name")
     @classmethod
