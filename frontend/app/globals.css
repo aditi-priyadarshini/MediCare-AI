@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-900: #123b43;
+  --navy-900: #172c3d;
+  --teal-700: #167c78;
+  --teal-500: #38bfa7;
+  --mint-100: #e9f5f2;
+  --canvas: #f5f7fa;
+  --surface: #ffffff;
+  --border: #d5dde3;
+  --text-primary: #172b36;
+  --text-secondary: #566874;
+  --amber-600: #8f5d12;
+  --amber-100: #fff4d9;
+  --red-700: #b42332;
+  --red-100: #fdebec;
+  --blue-700: #2563a6;
+  --blue-100: #eaf2fc;
+  --success-700: #18794e;
+  --success-100: #e8f5ee;
+}
+
+/* High-contrast mode (patient preference): stronger borders/text, darker actions. */
+html[data-contrast="high"] {
+  --border: #172b36;
+  --text-secondary: #172b36;
+  --teal-700: #0b4f4c;
+  --mint-100: #ffffff;
+  --canvas: #ffffff;
+}
+
+/* Large-text mode: 16px+ baseline scales every rem-based size. */
+html[data-large-text="true"] {
+  font-size: 118%;
+}
+
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+body {
+  background: var(--canvas);
+  color: var(--text-primary);
+  font-feature-settings: "tnum" 1; /* tabular numerals for clinical values */
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 3px solid var(--blue-700);
+  outline-offset: 2px;
+}

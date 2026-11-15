@@ -1,0 +1,92 @@
+# MediCare AI
+
+Patient-centred healthcare coordination platform (academic build). Specification lives in [`docs/`](docs/README.md).
+Synthetic data only. Not a medical device and not for real patient records.
+
+## Status
+
+| Phase | Scope | State |
+|---|---|---|
+| 0 | Foundation: Next.js + FastAPI + PostgreSQL/Alembic, Docker Compose, CI, health checks, structured logs | Done |
+| 1 | Auth (email/password, email verification, password reset, Google OAuth), patient profile, conditions, allergies, emergency contacts, consents, accessibility preferences, admin role | Done |
+| 2 | Records & labs: health records with PDF/PNG/JPEG upload and download, lab results with report-range flags and per-test trends | Done |
+| 3 | Medications: catalogue baseline, prescriptions vs self-reported medicines, schedules, dose logs, supplies (lot/expiry), refill and expiry alerts, reminder worker | Done (see notes) |
+| 4 | Medicine safety: ingredient catalogue, curated sourced rules, drug/food/condition/allergy checks, candidate alternatives with dated prices, side-effect notes, authenticity adapter (unsupported by default) | Done (see notes) |
+| 5+ | AI assistant, voice, discovery, sharing/emergency | Not started |
+
+Phase 2 notes:
+- Uploads are identified by magic bytes (the client's Content-Type and filename are never trusted), capped at `MAX_UPLOAD_BYTES` (10 MB), stored under random keys in `STORAGE_DIR`, and only ever served back to their owner as attachments. Docker Compose mounts a named volume for them.
+- A lab flag (`low` / `normal` / `high` / `unknown`) is computed by the server from the value and the range printed on the report. It is not an interpretation: the UI says "below/above report range" and never "abnormal".
+- Records and results are never hard-deleted by the user; "remove" sets `entered_in_error`. Editing content resets `verification_status` to `patient_reported`. File downloads are written to the audit log.
+- Endpoints: `/records` (+ `/{id}/file`), `/labs`, `/labs/tests`, `/labs/trend?test_name=`.
+
+Phase 3 notes:
+- A medicine is either `prescribed` (linked to a prescription a clinician wrote) or `self_reported` (a medication statement, including over-the-counter use). The server derives this from whether a prescription is linked; the client cannot set it.
+- Schedules are wall-clock times in an IANA time zone (copied from the profile at creation). Doses are materialised as `pending` rows 48 hours ahead; a unique (schedule, slot) constraint makes generation idempotent. DST rules are fixed and tested: a time that falls in a spring-forward gap still happens (at the first valid minute after it), and a time that repeats in a fall-back hour happens once.
+- **A dose is only ever `taken` through an explicit patient action** (`POST /doses/{id}/take`). The worker and the API never mark one taken; "overdue" is derived at read time. Taking a dose uses stock from the pack that expires first; undoing returns it.
+- Alerts (refill, out of stock, expiring, expired) are computed live from supplies and schedules, and the worker turns the same alerts into notifications. Refill reminders repeat at most weekly; expiry reminders are sent once per pack.
+- Reminder email is opt-in (`reminder_email` consent), at most one per patient per tick, and never contains a medicine name.
+- The catalogue holds names, forms and strengths only: no dosing, interactions or advice. Its 14 seed rows are in migration 0003; admins add more with `POST /admin/medicines`.
+- Run the worker with `python -m app.scripts.run_worker` (or `--once`). Docker Compose starts it as the `worker` service.
+- Endpoints: `/medicines`, `/prescriptions`, `/medications` (+ `/schedules`, `/supplies`, `/alerts`), `/schedules/{id}`, `/supplies/{id}`, `/doses` (+ `/take`, `/skip`, `/reset`), `/notifications`.
+
+Phase 4 notes:
+- **The bundled safety data is a synthetic demonstration set** (migration 0004: 14 ingredients, 5 rules, source "MediCare AI demonstration dataset", not clinically reviewed). It exists to exercise the checks. Replace it through `/admin` before any real use.
+- Checks return only `findings`, `no_matching_record` or `insufficient_data`. There is no "safe" outcome; the UI never says safe, clear or success. A medicine that cannot be mapped to ingredients, or a patient with no recorded conditions/allergies, gives `insufficient_data`.
+- A patient medicine maps to ingredients through its catalogue link or an exact, unambiguous name match. Conditions match rule terms on whole words (plurals tolerated) or on code; only `active` conditions are used.
+- Every finding carries source, version, jurisdiction and review date. Two rules for one pair that disagree on severity are both shown and flagged `conflict`.
+- Rules are never edited: an admin retires one (`POST /admin/safety-rules/{id}/retire`) and creates a new one. Drug-drug pairs are stored once in canonical order.
+- Alternatives are `candidate`s only when ingredients, strengths (same unit, no conversion), form, route and release type all match. Missing data on the chosen medicine gives `insufficient_data`; it is never guessed.
+- Prices need source, pack size and unit, jurisdiction and an observation time; unit price is computed server-side, and prices older than 90 days are flagged `stale`. Admin-entered only.
+- Authenticity: no authoritative source is integrated. The default adapter answers `unable_to_verify`, and the router downgrades any `verified` that does not name its source.
+- Side-effect notes are private, record what the patient noticed, assert no causation and are sent nowhere. Removal is soft (`entered_in_error`).
+- Audit entries for checks hold counts and outcomes only, never medicine names.
+- Not built: `/safety/medicines/{id}/adverse-effects` (no sourced dataset), second-person review of rules, regulator submission of side-effect notes.
+- Endpoints: `/safety/{drug-drug,drug-food,drug-condition,allergy}/check`, `/safety/medicines/{id}/warnings`, `/safety/authenticity/check`, `/medicines/{id}/alternatives`, `/adverse-events`, and admin `/admin/{sources,ingredients,safety-rules}`, `/admin/medicines/{id}/{composition,prices}`.
+
+Deferred from Phase 1: optional phone OTP, caregiver delegation. Onboarding still omits a "current medicines" step; medicines are added from the Medicines page.
+
+## Run it
+
+```bash
+cp .env.example .env            # set POSTGRES_PASSWORD and SECRET_KEY
+docker compose up --build       # web :3000, API :8000, mail catcher :8025
+```
+
+Verification and reset emails appear in Mailpit at http://localhost:8025.
+
+Create an admin: `docker compose run --rm -e ADMIN_PASSWORD=... backend python -m app.scripts.create_admin --email you@example.com`
+
+### Without Docker
+
+```bash
+# backend (needs PostgreSQL 16 with the citext extension)
+cd backend && pip install -r requirements-dev.txt
+cp .env.example .env && alembic upgrade head
+uvicorn app.main:app_factory --factory --reload
+
+# frontend
+cd frontend && npm install && npm run dev
+```
+
+## Test
+
+```bash
+cd backend && ruff check . && pytest          # TEST_DATABASE_URL defaults to localhost medicare_test
+cd frontend && npm run lint && npm run typecheck && npm test && npm run build
+```
+
+## Layout
+
+`backend/app/{core,identity,patients,records,audit,admin,api}` modular monolith (see `docs/ARCHITECTURE.md`);
+`frontend/{app,components,lib}`; decisions in `docs/ARCHITECTURE.md` (ADR-006..008).
+
+## Deployment (GitHub Actions to OCI)
+
+Pushing to `main` runs `.github/workflows/deploy.yml`: CI (`ci.yml`) must pass, then the backend and frontend images are built and pushed to GHCR as `ghcr.io/<owner>/medicare-ai-{backend,frontend}` (tags `latest` and the commit SHA), then the server is updated over SSH and the deploy waits for both services to report healthy. A failed health check fails the workflow and prints the service logs.
+
+Repository secrets: `OCI_HOST`, `OCI_USER`, `OCI_SSH_KEY` (private deploy key), `GHCR_PULL_TOKEN` (a token with `read:packages`). Optional repository variable `OCI_APP_DIR` (default `/home/ubuntu/medicare-ai`).
+
+One-time server setup: install Docker with the compose plugin, let `OCI_USER` use `sudo docker`, and create `OCI_APP_DIR/.env` with `POSTGRES_PASSWORD`, `SECRET_KEY`, `FRONTEND_ORIGINS` (your public https origin), `SMTP_HOST` (and optionally `SMTP_PORT`, `SMTP_FROM`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`). The frontend listens on `127.0.0.1:3000`; put a TLS reverse proxy in front of it. Production refuses to start without `COOKIE_SECURE`, a real `SECRET_KEY` and a non-memory email backend. The app's SMTP client has no login support, so `SMTP_HOST` must be a relay that accepts mail from the server (for example a local Postfix relay).
+
+To roll back, re-run the workflow on an earlier commit, or on the server run `IMAGE_PREFIX=ghcr.io/<owner> IMAGE_TAG=<old-sha> docker compose -f docker-compose.prod.yml up -d`.

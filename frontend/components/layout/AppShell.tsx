@@ -1,0 +1,99 @@
+"use client";
+
+import { FileText, FlaskConical, Home, HeartPulse, LogOut, Pill, ShieldAlert, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Logo } from "@/components/brand";
+import { useAuth } from "@/lib/auth-context";
+import { cn } from "@/lib/cn";
+
+const NAV = [
+  { href: "/dashboard", label: "Overview", icon: Home },
+  { href: "/profile", label: "My Health", icon: HeartPulse },
+  { href: "/records", label: "Records", icon: FileText },
+  { href: "/labs", label: "Lab results", icon: FlaskConical },
+  { href: "/medications", label: "Medicines", icon: Pill },
+  { href: "/safety", label: "Safety", icon: ShieldAlert },
+];
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  return (
+    <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-surface focus:px-3 focus:py-2"
+      >
+        Skip to content
+      </a>
+
+      <aside className="hidden bg-brand-900 p-5 text-white lg:flex lg:flex-col">
+        <Logo light />
+        <nav aria-label="Main" className="mt-8 space-y-1">
+          <p className="px-3 pb-1 text-xs uppercase tracking-wide text-white/60">Overview</p>
+          {NAV.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              aria-current={pathname === href ? "page" : undefined}
+              className={cn(
+                "flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium",
+                pathname === href ? "bg-white/15" : "hover:bg-white/10",
+              )}
+            >
+              <Icon className="h-5 w-5" aria-hidden />
+              {label}
+            </Link>
+          ))}
+        </nav>
+        <p className="mt-auto flex items-start gap-2 text-xs text-white/70">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          Private by default. Only you can see your records.
+        </p>
+      </aside>
+
+      <div className="flex min-w-0 flex-col pb-16 lg:pb-0">
+        <header className="flex h-16 items-center justify-between border-b border-line bg-surface px-4 sm:px-6">
+          <div className="lg:hidden">
+            <Logo />
+          </div>
+          <div className="ml-auto flex items-center gap-3 text-sm">
+            <span className="hidden text-ink-soft sm:inline">{user?.display_name ?? user?.email}</span>
+            <button
+              onClick={() => void logout().then(() => router.replace("/login"))}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-line px-3 font-medium hover:bg-mint-100"
+            >
+              <LogOut className="h-4 w-4" aria-hidden /> Sign out
+            </button>
+          </div>
+        </header>
+        <main id="main" className="mx-auto w-full max-w-5xl flex-1 p-4 sm:p-6 lg:p-8">
+          {children}
+        </main>
+      </div>
+
+      <nav
+        aria-label="Main"
+        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-line bg-surface lg:hidden"
+      >
+        {NAV.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            aria-current={pathname === href ? "page" : undefined}
+            className={cn(
+              "flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-xs font-medium",
+              pathname === href ? "text-teal-700" : "text-ink-soft",
+            )}
+          >
+            <Icon className="h-5 w-5" aria-hidden />
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}

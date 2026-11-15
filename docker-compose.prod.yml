@@ -1,0 +1,74 @@
+# Production stack for the OCI server. Images are built and pushed by
+# .github/workflows/deploy.yml; nothing is built on the server.
+# Needs a .env beside this file (see README: Deployment).
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medicare
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: medicare
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medicare"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    image: ${IMAGE_PREFIX:?}/medicare-ai-backend:${IMAGE_TAG:-latest}
+    command: ["alembic", "upgrade", "head"]
+    environment: &api-env
+      DATABASE_URL: postgresql+psycopg://medicare:${POSTGRES_PASSWORD}@postgres:5432/medicare
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      ENVIRONMENT: production
+      COOKIE_SECURE: "true"
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:?set FRONTEND_ORIGINS in .env, e.g. https://app.example.com}
+      GOOGLE_REDIRECT_URI: ${FRONTEND_ORIGINS}/api/v1/auth/google/callback
+      SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST in .env}
+      SMTP_PORT: ${SMTP_PORT:-25}
+      SMTP_FROM: ${SMTP_FROM:-MediCare AI <no-reply@localhost>}
+      STORAGE_DIR: /data/files
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  backend:
+    image: ${IMAGE_PREFIX:?}/medicare-ai-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment: *api-env
+    volumes: [uploads:/data/files]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  worker:
+    image: ${IMAGE_PREFIX:?}/medicare-ai-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: ["python", "-m", "app.scripts.run_worker"]
+    environment: *api-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  frontend:
+    image: ${IMAGE_PREFIX:?}/medicare-ai-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Bound to loopback: put a TLS reverse proxy (Caddy, nginx) in front on 443.
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [backend]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+volumes:
+  pgdata:
+  uploads:

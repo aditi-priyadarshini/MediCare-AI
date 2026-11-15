@@ -446,3 +446,38 @@ For high-risk tables, consider PostgreSQL Row-Level Security as defense in depth
 - Never edit an already-applied migration in a shared environment.
 - Seed only synthetic demo records.
 - Version safety reference datasets separately from application schema.
+
+
+## 4. Phase 1 implementation notes (as built)
+
+Implemented in migration `0001_initial_schema`. Differences from / additions to the logical schema:
+
+- `users.email` is `CITEXT` (requires the `citext` extension; the migration creates it). The app also
+  lowercases emails before lookup.
+- `patient_profiles.blood_group_verification_status` defaults to `unverified`; the API sets
+  `patient_reported` when a patient enters a blood group and never accepts a status from the client.
+- `patient_conditions` gained `status` values `active | resolved | inactive | entered_in_error`.
+  `source_document_id` is deferred to Phase 2 (no documents table yet).
+- `patient_allergies` gained `status` (`active | entered_in_error`) for soft removal.
+- `emergency_contacts`: `id, patient_user_id, name, relationship, phone_e164, email, is_primary`,
+  timestamps. Max 10 per patient (application rule); one primary (application rule).
+- `user_consents`: append-only ledger `id, user_id, consent_type, policy_version, granted, recorded_at`.
+  Types: `terms_of_service, privacy_policy, health_data_processing, ai_context`.
+- `audit_logs`: `id, actor_user_id, action, resource_type, resource_id, ip, request_id, metadata(JSONB),
+  created_at`. Stores identifiers and event names only, never health content, emails or secrets.
+- Not yet built: `caregiver_grants` (Phase 8), `conditions`/`allergies` reference catalogues.
+
+## 5. Phase 4 implementation notes (as built)
+
+Migration `0004_medicine_safety`:
+
+- `reference_sources(name, version, jurisdiction, reviewed_at, ...)`, `active_ingredients` (with `drug_class`,
+  curated `allergy_terms`, `source_id`), `medicine_ingredients(medicine_id, ingredient_id, strength_value, strength_unit)`.
+- `medicines` gained nullable `route` and `release_type`; null means "not recorded" and blocks comparison.
+- The separate interaction/food/condition tables in section 3 are one table, `safety_rules`, with `kind`
+  (`drug_drug | drug_food | drug_condition`). A CHECK enforces the shape per kind, and drug-drug pairs are
+  stored in canonical order (`ingredient_id < counterpart_ingredient_id`). Partial unique indexes allow one
+  active rule per source/version and pair or term. Rules are retired, never updated.
+- `medicine_prices` (source, price, currency, pack quantity and unit, jurisdiction, `observed_at`), all required.
+- `adverse_event_reports` (patient-owned, soft removal, no causality field).
+- The seed in this migration is synthetic demonstration data, not clinically reviewed.

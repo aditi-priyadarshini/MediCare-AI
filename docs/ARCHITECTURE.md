@@ -213,6 +213,25 @@ Accepted. Safety decisions must be based on curated, versioned data and validate
 ### ADR-005: Provider integrations are replaceable
 Accepted. Inventory, doctor, ambulance and medicine verification integrations may be unavailable during academic development.
 
+### ADR-006: Same-origin proxy with cookie sessions and bound CSRF tokens
+Accepted (Phase 1). The browser only talks to the Next.js origin; `/api/v1/*` is proxied to FastAPI.
+Session cookies are therefore first-party and no CORS is needed. Sessions are opaque random tokens
+(SHA-256 hashed at rest), `HttpOnly`, `SameSite=Lax`, `Secure` in production. State-changing
+authenticated requests require an `X-CSRF-Token` equal to an HMAC bound to the session (returned by
+`/auth/login`, `/auth/register`, `/auth/me`), and any unsafe request with a non-allowed `Origin` is
+rejected. Sessions rotate on login and on email verification and are all revoked on password reset.
+
+### ADR-007: Consent ledger drives onboarding state
+Accepted (Phase 1). `user_consents` is append-only; the current state is the latest row per type.
+"Onboarding complete" is derived (terms + privacy + health-data processing granted) rather than
+stored, so withdrawing a required consent returns the patient to onboarding without extra state.
+
+### ADR-008: Soft removal of patient-reported clinical entries
+Accepted (Phase 1). Conditions and allergies are never hard-deleted; patients mark them
+`entered_in_error`, which hides them by default but preserves history (DATABASE.md principle).
+Editing the content of a confirmed entry resets it to `patient_reported`. Emergency contacts are
+not clinical history and are hard-deleted.
+
 ## 12. Operational requirements
 
 - `/health/live` and `/health/ready` endpoints.

@@ -128,3 +128,17 @@ Use synthetic data for academic demos. Never use real patient records without an
 - CSRF and session controls tested.
 - Dependency scan has no unreviewed critical/high issue.
 - AI record retrieval respects consent and ownership.
+
+
+## 12. Phase 1 known limitations (accepted for the academic build)
+
+- **Registration reveals whether an email is registered** (HTTP 409). Login, password-reset and
+  resend responses do not. Fixing registration needs an "email already registered" notification flow.
+- **Rate limiting is in-process memory.** It is per-instance and resets on restart; move it to Redis
+  (Phase 3) before running more than one API instance.
+- **Client IP** comes from the socket; behind a proxy, configure trusted forwarded headers.
+- **No malware scanning or file upload** yet (Phase 2). **No phone OTP** yet (optional in FR-01).
+- **Password-reset timing** is not fully constant between existing and unknown accounts.
+- Google sign-in uses the userinfo endpoint over TLS (not ID-token signature validation) and links an
+  existing account only when Google reports the email verified; an unverified local account with the
+  same email has its password and sessions removed first (pre-registration hijack defence).

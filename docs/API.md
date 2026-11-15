@@ -95,7 +95,10 @@ Example error:
 | POST | `/safety/drug-condition/check` | Condition warning check |
 | POST | `/safety/allergy/check` | Allergy warning check |
 | GET | `/safety/medicines/{id}/warnings` | Medicine warnings |
-| GET | `/safety/medicines/{id}/adverse-effects` | Adverse effect reference |
+| GET | `/safety/medicines/{id}/adverse-effects` | Adverse effect reference (not built: no sourced dataset) |
+| POST | `/safety/authenticity/check` | Authenticity check; `unable_to_verify` unless a source is connected |
+| GET | `/medicines/{id}/alternatives` | Candidates with sourced, dated prices |
+| DELETE | `/adverse-events/{id}` | Soft removal (`entered_in_error`) |
 | POST | `/adverse-events` | Patient reaction report |
 | GET | `/adverse-events` | Patient's reports |
 

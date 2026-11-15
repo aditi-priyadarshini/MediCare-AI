@@ -1,0 +1,90 @@
+name: Build and Deploy MediCare AI
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+# One deployment at a time; a running deploy is never cancelled half way.
+concurrency:
+  group: medicare-ai-production
+  cancel-in-progress: false
+
+jobs:
+  # Lint, tests, audits and the secrets scan must pass before anything is published.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: ci
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: backend, context: ./backend }
+          - { name: frontend, context: ./frontend }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Image prefix (registry paths must be lower case)
+        id: img
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish ${{ matrix.name }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ steps.img.outputs.prefix }}/medicare-ai-${{ matrix.name }}:latest
+            ${{ steps.img.outputs.prefix }}/medicare-ai-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to OCI
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+          OCI_APP_DIR: ${{ vars.OCI_APP_DIR || '/home/ubuntu/medicare-ai' }}
+        run: |
+          set -euo pipefail
+          prefix="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$OCI_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$OCI_HOST" >> ~/.ssh/known_hosts
+
+          ssh_opts=(-i ~/.ssh/deploy_key -o IdentitiesOnly=yes)
+
+          # Ship the compose file and deploy script so the server always matches this commit.
+          ssh "${ssh_opts[@]}" "$OCI_USER@$OCI_HOST" "mkdir -p '$OCI_APP_DIR'"
+          scp "${ssh_opts[@]}" docker-compose.prod.yml deploy/deploy.sh "$OCI_USER@$OCI_HOST:$OCI_APP_DIR/"
+
+          # The pull token travels over stdin, never on a command line.
+          printf '%s\n' "$GHCR_TOKEN" | ssh "${ssh_opts[@]}" "$OCI_USER@$OCI_HOST" \
+            "bash '$OCI_APP_DIR/deploy.sh' '${GITHUB_SHA}' '$prefix' '${GITHUB_REPOSITORY_OWNER}'"
