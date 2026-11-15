@@ -1,5 +1,6 @@
 """Import every model so Alembic autogenerate and create_all see the full metadata."""
 
+from app.assistant.models import AiEvidenceItem, ChatContextAccessLog, ChatMessage, ChatSession
 from app.audit.models import AuditLog
 from app.core.db import Base
 from app.identity.models import OAuthAccount, OtpChallenge, SessionRecord, User
@@ -32,8 +33,12 @@ from app.safety.models import (
 __all__ = [
     "ActiveIngredient",
     "AdverseEventReport",
+    "AiEvidenceItem",
     "AuditLog",
     "Base",
+    "ChatContextAccessLog",
+    "ChatMessage",
+    "ChatSession",
     "DoseLog",
     "EmergencyContact",
     "HealthRecord",

@@ -232,6 +232,12 @@ Accepted (Phase 1). Conditions and allergies are never hard-deleted; patients ma
 Editing the content of a confirmed entry resets it to `patient_reported`. Emergency contacts are
 not clinical history and are hard-deleted.
 
+### ADR-009: Assistant answers only from retrieved evidence
+Accepted (Phase 5). Retrieval is fixed, owner-scoped code gated by the `ai_context` consent and per-chat switches; the model has no tools, SQL or memory and receives de-identified, escaped evidence. Safety-critical behaviour is outside the model: pre-model policy for urgent/treatment/diagnosis requests, post-model validation (citations, numbers, advice and causal claims) with fallback to the plain records, and server-added disclaimers. No evidence means no model call. Consequence: answers are less fluent than a free-form chatbot, by design.
+
+### ADR-010: Evidence-only mode is first class
+Accepted (Phase 5). `LLM_PROVIDER=none` is the default and a supported configuration, so the demo works offline and a provider outage degrades to listing records rather than failing. The provider sits behind `LLMProvider` (ADR-005).
+
 ## 12. Operational requirements
 
 - `/health/live` and `/health/ready` endpoints.

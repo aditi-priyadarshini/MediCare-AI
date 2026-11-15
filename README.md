@@ -12,7 +12,8 @@ Synthetic data only. Not a medical device and not for real patient records.
 | 2 | Records & labs: health records with PDF/PNG/JPEG upload and download, lab results with report-range flags and per-test trends | Done |
 | 3 | Medications: catalogue baseline, prescriptions vs self-reported medicines, schedules, dose logs, supplies (lot/expiry), refill and expiry alerts, reminder worker | Done (see notes) |
 | 4 | Medicine safety: ingredient catalogue, curated sourced rules, drug/food/condition/allergy checks, candidate alternatives with dated prices, side-effect notes, authenticity adapter (unsupported by default) | Done (see notes) |
-| 5+ | AI assistant, voice, discovery, sharing/emergency | Not started |
+| 5 | AI assistant: consent-gated retrieval of the patient's own records, cited evidence, safety policy, answer validation, chat sessions | Done (see notes) |
+| 6+ | Voice, discovery, sharing/emergency | Not started |
 
 Phase 2 notes:
 - Uploads are identified by magic bytes (the client's Content-Type and filename are never trusted), capped at `MAX_UPLOAD_BYTES` (10 MB), stored under random keys in `STORAGE_DIR`, and only ever served back to their owner as attachments. Docker Compose mounts a named volume for them.
@@ -43,6 +44,17 @@ Phase 4 notes:
 - Audit entries for checks hold counts and outcomes only, never medicine names.
 - Not built: `/safety/medicines/{id}/adverse-effects` (no sourced dataset), second-person review of rules, regulator submission of side-effect notes.
 - Endpoints: `/safety/{drug-drug,drug-food,drug-condition,allergy}/check`, `/safety/medicines/{id}/warnings`, `/safety/authenticity/check`, `/medicines/{id}/alternatives`, `/adverse-events`, and admin `/admin/{sources,ingredients,safety-rules}`, `/admin/medicines/{id}/{composition,prices}`.
+
+Phase 5 notes:
+- **Retrieval, not memory.** For each question the server runs fixed, owner-scoped queries for only the record kinds the chat has switched on (medicines, history, labs, doses, allergies) and only while the patient's `ai_context` consent is granted. All switches are off by default. Revoking consent stops use immediately, even if switches remain on. The model never sees the database, SQL or credentials, and uploaded file contents are never read.
+- **Fixed responses bypass the model.** Urgent symptoms get emergency guidance; requests to start/stop/change a medicine or dose, and diagnosis requests, are declined with a pointer to a clinician. No records are read for these.
+- **No evidence, no answer.** If nothing relevant is found the assistant says so; it does not answer from general knowledge. Medicine reference notes come from the Phase 4 curated rules with source, version and review date.
+- **Cited evidence.** Every patient fact is an evidence item (`E1`, `E2`, ...) with record id, date, verification status and source. Changes between lab results are calculated by the server only for the same test in the same unit; otherwise results are listed as "not comparable". Same-day conflicts are shown, not merged. Medicine timelines are positional ("before / while recorded active / after"), never causal.
+- **Model drafts are untrusted.** Evidence is sent HTML-escaped inside delimited blocks, with identifiers (name, email, phone) never included and instruction-like free text withheld. The draft is rejected, and the plain records listed instead, if it cites unknown evidence, contains a number not in the evidence, or gives treatment/causal claims. The disclaimer and the association-not-causation note are added by the server.
+- **No model configured is a supported mode.** With `LLM_PROVIDER=none` (default) the assistant lists the matching records itself ("evidence only"). Set `LLM_PROVIDER=anthropic`, `LLM_API_KEY` and optionally `LLM_MODEL` to enable drafting. Review the provider's retention and training settings before use.
+- Each question is answered independently (no earlier answers are fed back). Chats can be deleted (hard delete); `chat_context_access_logs` keeps ids and counts only.
+- Not built: streaming, other languages for server text (the `language` field only asks the model to reply in en/hi/or; Phase 6), retrieval over uploaded-file text/OCR.
+- Endpoints: `/assistant/status`, `/assistant/sessions` (+ `/{id}`, `/{id}/context`, `/{id}/messages`), `/assistant/messages/{id}/evidence`.
 
 Deferred from Phase 1: optional phone OTP, caregiver delegation. Onboarding still omits a "current medicines" step; medicines are added from the Medicines page.
 
@@ -80,13 +92,3 @@ cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 
 `backend/app/{core,identity,patients,records,audit,admin,api}` modular monolith (see `docs/ARCHITECTURE.md`);
 `frontend/{app,components,lib}`; decisions in `docs/ARCHITECTURE.md` (ADR-006..008).
-
-## Deployment (GitHub Actions to OCI)
-
-Pushing to `main` runs `.github/workflows/deploy.yml`: CI (`ci.yml`) must pass, then the backend and frontend images are built and pushed to GHCR as `ghcr.io/<owner>/medicare-ai-{backend,frontend}` (tags `latest` and the commit SHA), then the server is updated over SSH and the deploy waits for both services to report healthy. A failed health check fails the workflow and prints the service logs.
-
-Repository secrets: `OCI_HOST`, `OCI_USER`, `OCI_SSH_KEY` (private deploy key), `GHCR_PULL_TOKEN` (a token with `read:packages`). Optional repository variable `OCI_APP_DIR` (default `/home/ubuntu/medicare-ai`).
-
-One-time server setup: install Docker with the compose plugin, let `OCI_USER` use `sudo docker`, and create `OCI_APP_DIR/.env` with `POSTGRES_PASSWORD`, `SECRET_KEY`, `FRONTEND_ORIGINS` (your public https origin), `SMTP_HOST` (and optionally `SMTP_PORT`, `SMTP_FROM`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`). The frontend listens on `127.0.0.1:3000`; put a TLS reverse proxy in front of it. Production refuses to start without `COOKIE_SECURE`, a real `SECRET_KEY` and a non-memory email backend. The app's SMTP client has no login support, so `SMTP_HOST` must be a relay that accepts mail from the server (for example a local Postfix relay).
-
-To roll back, re-run the workflow on an earlier commit, or on the server run `IMAGE_PREFIX=ghcr.io/<owner> IMAGE_TAG=<old-sha> docker compose -f docker-compose.prod.yml up -d`.

@@ -227,7 +227,9 @@ def mark_taken(
 
 def mark_skipped(db: Session, dose: DoseLog, note: str | None, now: datetime) -> None:
     if dose.status != "pending":
-        raise AppError(409, "DOSE_ALREADY_LOGGED", "Undo this dose first, then you can change it.")
+        raise AppError(
+            409, "DOSE_ALREADY_LOGGED", "Undo this dose first, then you can change it."
+        )
     dose.status = "skipped"
     dose.note = note
     read_dose_notifications(db, dose.id, now)

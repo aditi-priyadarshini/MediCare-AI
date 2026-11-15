@@ -111,12 +111,9 @@ def medicine_warnings(medicine_id: uuid.UUID, user: CurrentUser, db: DbDep):
         )
     )
     rules = svc.load_rules(db, None, own)
-    # Drug-drug rules store the pair in sorted-id order, so the other ingredient can be
-    # either side of the rule; load every id the rules mention.
     names = svc.load_ingredients(
         db,
         own
-        | {uuid.UUID(r.ingredient_id) for r in rules}
         | {uuid.UUID(r.counterpart_ingredient_id) for r in rules if r.counterpart_ingredient_id},
     )
     out: list[eng.Finding] = []

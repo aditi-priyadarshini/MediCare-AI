@@ -373,6 +373,8 @@ Store pairs in canonical order to avoid duplicate A/B and B/A records.
 
 Avoid copying whole medical reports into chat messages. Store references to evidence items.
 
+Implemented in migration 0005: `chat_sessions.context_mode` is JSONB with the five switches (all false by default). `chat_messages.safety_classification` is constrained to `answered, evidence_only, fallback, no_data, urgent_escalation, declined_treatment, declined_diagnosis`; `model_metadata` holds `mode`, `provider`, `model`, `context` and, for fallbacks, `rejected` reasons (never the prompt). `ai_evidence_items` adds `ref_label` (E1...), `cited` and `excerpt_hash` (SHA-256 of the exact evidence text sent; the text is not stored). `chat_context_access_logs` stores patient id, session/message ids (no FK, so it survives chat deletion), purpose, effective context switches and `[{type, id}]` sources: ids and counts only.
+
 ### medical_share_grants
 - `id UUID PK`
 - `patient_user_id UUID FK users`

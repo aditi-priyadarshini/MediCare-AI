@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.admin.router import router as admin_router
+from app.assistant.router import router as assistant_router
 from app.identity.router import router as auth_router
 from app.medications.router import router as medications_router
 from app.patients.router import router as patient_router
@@ -16,3 +17,4 @@ api_v1.include_router(records_router)
 api_v1.include_router(medications_router)
 api_v1.include_router(safety_router)
 api_v1.include_router(safety_admin_router)
+api_v1.include_router(assistant_router)

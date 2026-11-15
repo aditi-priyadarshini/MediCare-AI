@@ -375,3 +375,65 @@ export interface AdverseEvent {
   created_at: string;
   notice: string;
 }
+
+/* ------------------------------------------------------------------ assistant (Phase 5) */
+export type ContextKey = "medicines" | "history" | "labs" | "doses" | "allergies";
+export type AssistantContext = Record<ContextKey, boolean>;
+export type AssistantLanguage = "en" | "hi" | "or";
+export type AssistantMode = "llm" | "evidence_only" | "fallback" | "canned";
+
+export interface AssistantStatus {
+  mode: "llm" | "evidence_only";
+  provider: string;
+  model: string | null;
+  consent_granted: boolean;
+  notices: string[];
+}
+
+export interface EvidenceItem {
+  id: string;
+  ref: string;
+  source_type:
+    | "lab_result"
+    | "medication"
+    | "dose_log"
+    | "condition"
+    | "allergy"
+    | "health_record"
+    | "reference"
+    | "derived";
+  source_record_id: string | null;
+  source_label: string;
+  recorded_at: string | null;
+  verification_status: string | null;
+  cited: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  safety_classification: string | null;
+  mode: AssistantMode | null;
+  created_at: string;
+  evidence: EvidenceItem[];
+}
+
+export interface ChatSessionBrief {
+  id: string;
+  title: string;
+  language: AssistantLanguage;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatSessionDetail extends ChatSessionBrief {
+  context: AssistantContext;
+  consent_granted: boolean;
+  messages: ChatMessage[];
+}
+
+export interface AskResult {
+  user_message: ChatMessage;
+  assistant_message: ChatMessage;
+}

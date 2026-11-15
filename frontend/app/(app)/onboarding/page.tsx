@@ -119,7 +119,7 @@ export default function OnboardingPage() {
               <CheckboxField label="I’ve read the privacy policy" checked={consent.privacy} onChange={(e) => setConsent((c) => ({ ...c, privacy: e.target.checked }))} />
               <CheckboxField label="Store my health information on this account" description="Needed to keep your profile, conditions and allergies." checked={consent.health} onChange={(e) => setConsent((c) => ({ ...c, health: e.target.checked }))} />
               <div className="border-t border-line pt-4">
-                <CheckboxField label="Optional: let the AI assistant use my records" description="The assistant isn’t available yet. This only records your preference and can be changed any time." checked={consent.ai} onChange={(e) => setConsent((c) => ({ ...c, ai: e.target.checked }))} />
+                <CheckboxField label="Optional: let the AI assistant use my records" description="Lets the assistant read only the kinds of record you switch on in each chat. You can change this any time." checked={consent.ai} onChange={(e) => setConsent((c) => ({ ...c, ai: e.target.checked }))} />
               </div>
             </>
           )}

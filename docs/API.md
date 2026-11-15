@@ -112,7 +112,13 @@ Example error:
 | POST | `/assistant/sessions/{id}/messages` | Ask question |
 | GET | `/assistant/messages/{id}/evidence` | Inspect evidence |
 | PATCH | `/assistant/sessions/{id}/context` | Update context consent |
-| DELETE | `/assistant/sessions/{id}` | Delete chat |
+| DELETE | `/assistant/sessions/{id}` | Delete chat (hard delete; 204) |
+| GET | `/assistant/status` | Model mode (`llm` / `evidence_only`), consent state, notices |
+
+Phase 5 behaviour:
+- `POST /assistant/sessions` body `{title?, language: en|hi|or, context: {medicines,history,labs,doses,allergies}}`. All context switches default to `false`. Switching any ON without the `ai_context` consent returns 403 `AI_CONTEXT_CONSENT_REQUIRED`; switching OFF never needs consent. `PATCH .../context` merges the given switches.
+- `POST .../messages` body `{content}` (1-2000 chars) returns `{user_message, assistant_message}`. The assistant message has `safety_classification` (`answered`, `evidence_only`, `fallback`, `no_data`, `urgent_escalation`, `declined_treatment`, `declined_diagnosis`), `mode` and `evidence[]` (`ref`, `source_type`, `source_record_id`, `source_label`, `recorded_at`, `verification_status`, `cited`). Limits: 20 questions/minute/user, 200 messages and 100 chats per user (409 `SESSION_FULL` / `SESSION_LIMIT`).
+- Other users' chats and messages return 404.
 
 ## 8. Discovery and providers
 

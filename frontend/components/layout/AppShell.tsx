@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, FlaskConical, Home, HeartPulse, LogOut, Pill, ShieldAlert, ShieldCheck } from "lucide-react";
+import { FileText, FlaskConical, Home, HeartPulse, LogOut, MessageSquare, Pill, ShieldAlert, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/brand";
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/labs", label: "Lab results", icon: FlaskConical },
   { href: "/medications", label: "Medicines", icon: Pill },
   { href: "/safety", label: "Safety", icon: ShieldAlert },
+  { href: "/assistant", label: "Assistant", icon: MessageSquare },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

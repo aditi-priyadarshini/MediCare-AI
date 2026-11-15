@@ -86,6 +86,8 @@ Audit records should be append-only where feasible. Avoid storing full medical c
 - Urgent symptom prompts should provide concise emergency guidance and not continue a lengthy general chat.
 - Human professional review remains necessary for clinical decisions.
 
+Phase 5 controls: consent plus per-chat switches gate every record read; evidence is HTML-escaped in delimited blocks; instruction-like free text is withheld; uploaded file contents are never read; model output is validated and rendered as plain text; question text is stripped of emails and phone/ID numbers before leaving the system; audit rows and logs hold counts and ids only; 20 questions per minute per user. Known limits: validation is heuristic and errs toward fallback; the injection filter is a pattern list, not a guarantee; third-party model retention must be reviewed before real use.
+
 ## 8. Clinical data safety
 
 - Drug interaction severity must come from curated reference rules.

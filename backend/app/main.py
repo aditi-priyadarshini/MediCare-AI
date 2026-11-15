@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from app.api.deps import SAFE_METHODS
 from app.api.v1 import api_v1
+from app.assistant.provider import LLMProvider, build_provider
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.errors import error_body, install_error_handlers
@@ -46,6 +47,7 @@ def create_app(
     email: EmailProvider | None = None,
     google: GoogleOAuthProvider | None = None,
     authenticity: AuthenticityVerifier | None = None,
+    llm: LLMProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -77,6 +79,9 @@ def create_app(
 
     # No authoritative source is integrated yet: the default always says "unable to verify".
     app.state.authenticity = authenticity or UnsupportedVerifier()
+
+    # No model unless configured: the assistant then lists matching records itself.
+    app.state.llm = llm or build_provider(settings)
 
     install_error_handlers(app)
 

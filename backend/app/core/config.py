@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     # Reminder worker (python -m app.scripts.run_worker)
     worker_interval_seconds: int = 60
 
+    # AI assistant (Phase 5). "none" = no model: the assistant lists the matching records
+    # itself ("evidence only"). Only structured, de-identified evidence is ever sent out.
+    llm_provider: Literal["none", "anthropic"] = "none"
+    llm_api_key: str | None = None
+    llm_model: str = "claude-sonnet-5-5"
+    llm_timeout_seconds: int = 30
+    llm_max_output_tokens: int = 700
+    assistant_requests_per_minute: int = 20
+
     @property
     def allowed_origins(self) -> list[str]:
         return [o.strip().rstrip("/") for o in self.frontend_origins.split(",") if o.strip()]
@@ -75,6 +84,8 @@ class Settings(BaseSettings):
                 raise ValueError("COOKIE_SECURE must be true in production")
             if self.email_backend == "memory":
                 raise ValueError("EMAIL_BACKEND=memory is not allowed in production")
+        if self.llm_provider == "anthropic" and not self.llm_api_key:
+            raise ValueError("LLM_API_KEY is required when LLM_PROVIDER=anthropic")
         return self
 
 

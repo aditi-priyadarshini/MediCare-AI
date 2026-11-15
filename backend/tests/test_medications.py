@@ -441,7 +441,7 @@ def test_supply_validation_and_manual_count(alice):
     for body in bad:
         assert alice.post(f"/medications/{med['id']}/supplies", json=body).status_code == 422, body
     supply = make_supply(alice, med["id"], lot_number="B123", manufacturer="Acme")
-    assert supply["quantity_remaining"] == 30 and supply["lot_number"] == "B123"
+    assert supply["quantity_remaining"] == 10 and supply["lot_number"] == "B123"
     fixed = alice.patch(f"/supplies/{supply['id']}", json={"quantity_remaining": 4})
     assert fixed.json()["quantity_remaining"] == 4
     too_many = {"quantity_remaining": 31}

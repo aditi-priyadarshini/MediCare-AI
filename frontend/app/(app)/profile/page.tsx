@@ -18,7 +18,7 @@ const CONSENT_COPY: Record<string, { label: string; description: string }> = {
   },
   ai_context: {
     label: "Let the AI assistant use my records",
-    description: "The assistant isn’t available yet. This only records your preference, and you can change it any time.",
+    description: "Lets the assistant read only the kinds of record you switch on in each chat. Off by default; you can turn it off any time.",
   },
   reminder_email: {
     label: "Email me when a reminder is due",

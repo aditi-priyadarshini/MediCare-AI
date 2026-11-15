@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, MapPin, MessageSquareText } from "lucide-react";
+import { CalendarClock, MapPin } from "lucide-react";
 import Link from "next/link";
 import { Card, Skeleton } from "@/components/ui/primitives";
 import { api } from "@/lib/api-client";
@@ -9,7 +9,6 @@ import { useProfile } from "@/lib/profile-context";
 import type { Page } from "@/lib/types";
 
 const COMING = [
-  { label: "Ask AI", icon: MessageSquareText },
   { label: "Find care", icon: MapPin },
 ];
 
