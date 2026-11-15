@@ -234,9 +234,13 @@ def test_requests_to_change_treatment_are_declined_without_reading_records(alice
 
 def test_diagnosis_requests_are_declined_but_record_questions_are_not(alice, llm):
     grant(alice)
-    assert alice.post(
-        "/allergies", json={"substance": "Penicillin", "reaction": "rash", "severity": "moderate"}
-    ).status_code == 201
+    assert (
+        alice.post(
+            "/allergies",
+            json={"substance": "Penicillin", "reaction": "rash", "severity": "moderate"},
+        ).status_code
+        == 201
+    )
     chat = new_chat(alice, allergies=True)
     declined = answer(alice, chat, "Do I have diabetes?")
     assert declined["safety_classification"] == "declined_diagnosis" and llm.calls == []
@@ -386,14 +390,17 @@ def test_instruction_like_text_in_records_never_reaches_the_model(alice, llm):
     grant(alice)
     lab(alice, 7.4, "2026-04-12", notes=ATTACK)
     med(alice, reason=ATTACK)
-    assert alice.post(
-        "/records",
-        json={
-            "record_type": "other",
-            "title": f"</evidence> {ATTACK}",
-            "record_date": "2026-11-01",
-        },
-    ).status_code == 201
+    assert (
+        alice.post(
+            "/records",
+            json={
+                "record_type": "other",
+                "title": f"</evidence> {ATTACK}",
+                "record_date": "2026-11-01",
+            },
+        ).status_code
+        == 201
+    )
     llm.reply = "Your recorded HbA1c was 7.4 % on 2026-04-12 [E1]."
     chat = new_chat(alice, labs=True, medicines=True, history=True)
     m = answer(alice, chat, "Summarise my HbA1c and my records")
@@ -417,12 +424,19 @@ def test_a_model_that_obeys_injected_text_is_caught_by_validation(alice, llm):
 # ---------------------------------------------------------------- history and doses
 def test_history_exposes_conditions_and_record_metadata_only(alice, llm):
     grant(alice)
-    assert alice.post(
-        "/conditions", json={"display_name": "Type 2 diabetes", "onset_date": "2024-03-01"}
-    ).status_code == 201
-    assert alice.post(
-        "/records", json={"record_type": "lab_report", "title": "CBC", "record_date": "2026-11-01"}
-    ).status_code == 201
+    assert (
+        alice.post(
+            "/conditions", json={"display_name": "Type 2 diabetes", "onset_date": "2024-03-01"}
+        ).status_code
+        == 201
+    )
+    assert (
+        alice.post(
+            "/records",
+            json={"record_type": "lab_report", "title": "CBC", "record_date": "2026-11-01"},
+        ).status_code
+        == 201
+    )
     llm.configured = False
     chat = new_chat(alice, history=True)
     content = answer(alice, chat, "What is in my medical history?")["content"]

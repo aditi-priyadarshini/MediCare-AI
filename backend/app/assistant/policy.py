@@ -111,7 +111,7 @@ TREATMENT_TEXT = (
     "I can't tell you whether to start, stop, skip or change a medicine or its dose. That "
     "decision belongs with your prescriber or pharmacist, who know your full history. Please "
     "don't change anything because of an app. What I can do is show what your own records say "
-    "about the medicine (switch on \"My current medicines\" above) or help you list questions to "
+    'about the medicine (switch on "My current medicines" above) or help you list questions to '
     "take to your prescriber."
 )
 
@@ -135,7 +135,7 @@ NO_EVIDENCE_TEXT = (
 )
 
 CONSENT_OFF_TEXT = (
-    "The \"AI uses my records\" permission is switched off in My Health, so I can't use your "
+    'The "AI uses my records" permission is switched off in My Health, so I can\'t use your '
     "records. I can still look at general medicine reference data."
 )
 

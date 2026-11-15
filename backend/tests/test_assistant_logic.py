@@ -176,8 +176,9 @@ def test_without_a_named_test_only_the_latest_result_of_each_test_is_listed():
 
 
 def test_every_lab_item_carries_date_unit_range_and_verification():
-    items, _ = ev.lab_items([lab(1, 7.4, date(2026, 4, 12), status="clinician_confirmed")],
-                            ev.Refs(), {"hba1c"})
+    items, _ = ev.lab_items(
+        [lab(1, 7.4, date(2026, 4, 12), status="clinician_confirmed")], ev.Refs(), {"hba1c"}
+    )
     t = items[0].text
     for part in ("2026-04-12", "7.4 %", "report range 4 to 5.6 %", "confirmed by a clinician"):
         assert part in t

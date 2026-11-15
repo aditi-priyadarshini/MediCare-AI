@@ -187,15 +187,25 @@ def require_consent_to_enable(before: dict, after: dict, consent: bool) -> None:
 
 
 def session_count(db: Session, user) -> int:
-    return db.scalar(
-        select(func.count()).select_from(ChatSession).where(ChatSession.patient_user_id == user.id)
-    ) or 0
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .where(ChatSession.patient_user_id == user.id)
+        )
+        or 0
+    )
 
 
 def message_count(db: Session, session_id: uuid.UUID) -> int:
-    return db.scalar(
-        select(func.count()).select_from(ChatMessage).where(ChatMessage.session_id == session_id)
-    ) or 0
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatMessage)
+            .where(ChatMessage.session_id == session_id)
+        )
+        or 0
+    )
 
 
 def evidence_for(

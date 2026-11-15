@@ -558,7 +558,7 @@ def record_items(rows: list[RecordPoint], refs: Refs, limit: int = 10) -> list[E
                 source_record_id=r.id,
                 label=f"{r.record_type.replace('_', ' ')}: {shown}",
                 text=(
-                    f"Health record: {r.record_type.replace('_', ' ')} titled \"{shown}\"; dated "
+                    f'Health record: {r.record_type.replace("_", " ")} titled "{shown}"; dated '
                     f"{_day(r.record_date)}; {_verif(r.verification_status)}; file attached: "
                     f"{'yes' if r.has_file else 'no'}. Only these details are available to the "
                     "assistant, not the file contents."

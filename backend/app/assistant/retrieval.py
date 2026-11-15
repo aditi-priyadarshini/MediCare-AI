@@ -255,8 +255,7 @@ def _reference_notes(db: Session, question: str) -> list[ev.ReferenceNote]:
         )
         s = r.source
         source_line = (
-            f"{s.name}, version {s.version}, reviewed {s.reviewed_at.isoformat()}, "
-            f"{s.jurisdiction}"
+            f"{s.name}, version {s.version}, reviewed {s.reviewed_at.isoformat()}, {s.jurisdiction}"
         )
         out.append(
             ev.ReferenceNote(
