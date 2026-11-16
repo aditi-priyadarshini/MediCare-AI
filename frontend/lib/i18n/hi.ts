@@ -12,6 +12,8 @@ export const hi: Dictionary = {
   "nav.labs": "जाँच के नतीजे",
   "nav.medicines": "दवाइयाँ",
   "nav.safety": "सुरक्षा",
+  "nav.care": "देखभाल खोजें",
+  "nav.diet": "आहार",
   "nav.assistant": "सहायक",
   "nav.main": "मुख्य मेन्यू",
   "nav.skip": "मुख्य सामग्री पर जाएँ",

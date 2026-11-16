@@ -14,6 +14,7 @@ from app.core.db import make_engine, make_sessionmaker
 from app.core.errors import error_body, install_error_handlers
 from app.core.logging import configure_logging, request_id_ctx
 from app.core.ratelimit import InMemoryRateLimiter
+from app.discovery.providers import AppointmentProvider, UnsupportedAppointmentProvider
 from app.identity.providers import (
     EmailProvider,
     GoogleOAuthProvider,
@@ -48,6 +49,7 @@ def create_app(
     google: GoogleOAuthProvider | None = None,
     authenticity: AuthenticityVerifier | None = None,
     llm: LLMProvider | None = None,
+    appointments: AppointmentProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -82,6 +84,9 @@ def create_app(
 
     # No model unless configured: the assistant then lists matching records itself.
     app.state.llm = llm or build_provider(settings)
+
+    # No clinic booking system is integrated: provider-mode requests fail with "call the clinic".
+    app.state.appointments = appointments or UnsupportedAppointmentProvider()
 
     install_error_handlers(app)
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, FlaskConical, Home, HeartPulse, LogOut, MessageSquare, Pill, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Apple, FileText, FlaskConical, HeartPulse, Home, LogOut, MapPin, MessageSquare, Pill, ShieldAlert, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/brand";
@@ -17,6 +17,8 @@ const NAV: Array<{ href: string; label: MessageKey; icon: typeof Home }> = [
   { href: "/labs", label: "nav.labs", icon: FlaskConical },
   { href: "/medications", label: "nav.medicines", icon: Pill },
   { href: "/safety", label: "nav.safety", icon: ShieldAlert },
+  { href: "/care", label: "nav.care", icon: MapPin },
+  { href: "/diet", label: "nav.diet", icon: Apple },
   { href: "/assistant", label: "nav.assistant", icon: MessageSquare },
 ];
 
@@ -91,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <nav
         aria-label={t("nav.main")}
-        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t border-line bg-surface lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto border-t border-line bg-surface lg:hidden"
       >
         {NAV.map(({ href, label, icon: Icon }) => (
           <Link
@@ -99,7 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             href={href}
             aria-current={pathname === href ? "page" : undefined}
             className={cn(
-              "flex min-h-[56px] flex-col items-center justify-center gap-0.5 break-words px-0.5 text-center text-[0.68rem] font-medium leading-tight",
+              "flex min-h-[56px] min-w-[72px] flex-1 flex-col items-center justify-center gap-0.5 break-words px-1 text-center text-[0.68rem] font-medium leading-tight",
               pathname === href ? "text-teal-700" : "text-ink-soft",
             )}
           >

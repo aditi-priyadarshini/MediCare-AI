@@ -124,20 +124,28 @@ Phase 5 behaviour:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/pharmacies/search` | Search pharmacies |
-| GET | `/pharmacies/{id}` | Pharmacy detail |
-| GET | `/pharmacies/{id}/inventory` | Inventory if integrated |
-| GET | `/doctors/search` | Search doctors |
-| GET | `/doctors/{id}` | Doctor detail |
-| POST | `/appointments` | Request appointment |
-| GET | `/appointments` | List appointments |
+| GET | `/pharmacies/search` | Search pharmacies: `q`, `city`, `lat`+`lon`+`radius_km` (both or neither; used for this request only), `medicine_id` (adds a `stock` block per pharmacy), `limit`, `offset` |
+| GET | `/pharmacies/{id}` | Pharmacy detail with source and freshness |
+| GET | `/pharmacies/{id}/inventory` | Latest stock report per medicine; `feed_available: false` when no source has reported |
+| GET | `/doctors/search` | Search doctors: `q`, `specialty`, `city`, `language`, `verified_only`, location as above |
+| GET | `/doctors/specialties` | Specialties of active doctors |
+| GET | `/doctors/{id}` | Doctor detail with credentials (registration masked) |
+| POST | `/appointments` | Request an appointment (`request_only` clinics: saved here, not sent) |
+| GET | `/appointments` | List my requests |
+| GET | `/appointments/{id}` | One request |
+| POST | `/appointments/{id}/cancel` | Cancel a request |
+
+Search results carry a `notice`, a `source` and a `freshness` (`fresh` or `stale`, with a label). Stock is `no_feed` or `reported`, never an assumed state. Errors: `PROVIDER_UNAVAILABLE` (409, nothing stored), `ALREADY_REQUESTED`, `APPOINTMENT_LIMIT`, `NOT_CANCELLABLE`.
 
 ## 9. Diet, sharing and emergency
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET/PUT | `/diet/preferences` | Preferences |
-| GET/POST | `/diet/plans` | List/create educational plan |
+| GET/PUT | `/diet/preferences` | Preferences; GET also returns the review flags that apply now |
+| GET/POST | `/diet/plans` | List/create a 7-day educational plan from saved preferences |
+| GET/DELETE | `/diet/plans/{id}` | Read or delete a plan |
+
+Plan errors: `PREFERENCES_REQUIRED` (409), `DIETITIAN_REVIEW_REQUIRED` (409, no plan is made), `PLAN_LIMIT`. A plan stores the constraints it used, its flags and the catalogue version.
 | POST | `/sharing/grants` | Create share grant |
 | GET | `/sharing/grants` | List active grants |
 | DELETE | `/sharing/grants/{id}` | Revoke grant |
@@ -154,7 +162,10 @@ Phase 5 behaviour:
 - `/admin/ingredients`
 - `/admin/reference-sources`
 - `/admin/interactions`
-- `/admin/providers`
+- `/admin/provider-sources` (GET, POST): where directory, stock and credential data came from, with each source's freshness policy
+- `/admin/pharmacies` (POST), `/admin/pharmacies/{id}/retire`, `/admin/pharmacies/{id}/inventory` (POST a stock report naming its source and observation time)
+- `/admin/doctors` (POST), `/admin/doctors/{id}/retire`, `/admin/doctors/{id}/credentials` (POST; `verified` needs a credential source and time)
+- `/admin/appointments/{id}/provider-response` (POST; stand-in for a clinic's reply, needs the matching provider reference)
 - `/admin/feedback`
 - `/admin/audit-logs`
 

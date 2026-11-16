@@ -14,6 +14,8 @@ export const en = {
   "nav.labs": "Lab results",
   "nav.medicines": "Medicines",
   "nav.safety": "Safety",
+  "nav.care": "Find care",
+  "nav.diet": "Diet",
   "nav.assistant": "Assistant",
   "nav.main": "Main",
   "nav.skip": "Skip to content",

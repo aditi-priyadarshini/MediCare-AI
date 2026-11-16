@@ -53,6 +53,16 @@ const PAGES: Page[] = [
     words: { en: /\b(safety|interactions?)\b/, hi: /(सुरक्षा|इंटरैक्शन)/, or: /(ସୁରକ୍ଷା|ଇଣ୍ଟରାକ୍ସନ)/ },
   },
   {
+    href: "/care",
+    labelKey: "nav.care",
+    words: { en: /\b(find care|pharmac\w*|doctors?|appointments?)\b/, hi: /(फ़ार्मेसी|फार्मेसी|डॉक्टर|अपॉइंटमेंट|देखभाल)/, or: /(ଫାର୍ମାସି|ଡାକ୍ତର|ଆପଏଣ୍ଟମେଣ୍ଟ|ଯତ୍ନ)/ },
+  },
+  {
+    href: "/diet",
+    labelKey: "nav.diet",
+    words: { en: /\b(diet|meal plans?|meals?|food)\b/, hi: /(आहार|भोजन|खाना)/, or: /(ଖାଦ୍ୟ|ଭୋଜନ)/ },
+  },
+  {
     href: "/assistant",
     labelKey: "nav.assistant",
     words: { en: /\b(assistant|chat)\b/, hi: /(सहायक|असिस्टेंट|चैट)/, or: /(ସହାୟକ|ଆସିଷ୍ଟାଣ୍ଟ|ଚାଟ୍)/ },
