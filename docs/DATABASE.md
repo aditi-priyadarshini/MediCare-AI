@@ -507,3 +507,5 @@ Migration `0008_admin_release`:
 - `safety_rules` gains `version`, `supersedes_rule_id` (self FK, RESTRICT), `review_status` (`unreviewed|approved`), `reviewed_by_user_id`, `peer_reviewed_at`. CHECK `review_is_second_person`: an approval needs a reviewer and time, and the reviewer cannot be `created_by_user_id`.
 - `audit_logs` is append-only: trigger `audit_logs_no_change` raises on UPDATE or DELETE. New indexes `(created_at)` and `(action, created_at)`.
 - `alembic check` reports no drift between models and migrations.
+
+Migration `0009_ai_provider_chain`: `chat_context_access_logs.provider` widened to 128 characters so a failover chain can list every vendor that was sent the evidence (comma-separated).

@@ -89,7 +89,7 @@ def status(request: Request, user: CurrentUser, db: DbDep):
         )
     return StatusOut(
         mode="llm" if llm.configured else "evidence_only",
-        provider=llm.name,
+        provider=",".join(m.name for m in getattr(llm, "members", [])) or llm.name,
         model=getattr(llm, "model", None) or None,
         consent_granted=retrieval.ai_consent_granted(db, user),
         notices=notices,

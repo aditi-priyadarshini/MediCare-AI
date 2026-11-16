@@ -149,6 +149,14 @@ Use synthetic data for academic demos. Never use real patient records without an
 - AI record retrieval respects consent and ownership.
 
 
+## 11b. Multiple AI vendors
+
+- Every configured vendor receives the same structured, de-identified evidence; enabling a vendor is a data-sharing decision to disclose to patients and in the privacy notice.
+- The data-use log names every vendor contacted for an answer, including ones that failed.
+- Keys come only from server configuration, are sent in headers, and never appear in URLs, errors, logs, the admin API or the UI.
+- Provider endpoints are validated at startup (https, no credentials or query; plain http only for localhost). They are operator-set, never user-supplied, so there is no request-forgery path from a patient.
+- Replies from every vendor face the same validation; none is trusted.
+
 ## 11a. Phase 9 verification (status of the list above)
 
 | Check | How it is proved |

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.admin.router import router as admin_router
+from app.assistant.admin import router as llm_admin_router
 from app.assistant.router import router as assistant_router
 from app.discovery.admin import router as discovery_admin_router
 from app.discovery.router import router as discovery_router
@@ -30,3 +31,4 @@ api_v1.include_router(nutrition_router)
 api_v1.include_router(sharing_router)
 api_v1.include_router(emergency_router)
 api_v1.include_router(feedback_router)
+api_v1.include_router(llm_admin_router)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionLabel, canReview, dayEndIso, dayStartIso, reviewLabel, type AdminRule } from "@/lib/admin";
+import { providerState, actionLabel, canReview, dayEndIso, dayStartIso, reviewLabel, type AdminRule } from "@/lib/admin";
 
 const r = (over: Partial<AdminRule>) =>
   ({ status: "active", review_status: "unreviewed", created_by_user_id: "a", ...over }) as AdminRule;
@@ -32,4 +32,11 @@ describe("admin helpers", () => {
     expect(end - start).toBeGreaterThanOrEqual(23 * 3600_000);
     expect(end - start).toBeLessThanOrEqual(25 * 3600_000); // DST days
   });
+});
+
+it("states provider health in words", () => {
+  expect(providerState({ cooling_down: true, consecutive_failures: 3, calls: 9 })).toBe("Paused after repeated failures");
+  expect(providerState({ cooling_down: false, consecutive_failures: 1, calls: 9 })).toBe("Last request failed");
+  expect(providerState({ cooling_down: false, consecutive_failures: 0, calls: 0 })).toBe("Not used yet");
+  expect(providerState({ cooling_down: false, consecutive_failures: 0, calls: 5 })).toBe("Working");
 });

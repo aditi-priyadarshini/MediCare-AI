@@ -1,59 +1,168 @@
-# MediCare AI — Product & Engineering Specification
+# MediCare AI
 
-**Document pack:** v1.0  
-**Date:** 14 November 2026  
-**Product type:** Academic healthcare web platform  
-**Delivery model:** Solo developer, phased implementation  
-**Status:** Baseline specification — implementation not yet started
+Patient-centred healthcare coordination platform (academic build). Specification lives in [`docs/`](docs/README.md).
+Synthetic data only. Not a medical device and not for real patient records.
 
-## What's included
+## Status
 
-| File | Purpose |
-|---|---|
-| `PRD.md` | Product vision, users, requirements, scope and acceptance criteria |
-| `DESIGN.md` | Visual identity, design tokens, UX principles, page layouts and component guidance |
-| `PHASES.md` | Delivery roadmap, milestones, dependencies and definition of done |
-| `ARCHITECTURE.md` | System architecture, technology decisions, modules and deployment |
-| `DATABASE.md` | Proposed PostgreSQL schema, entities, constraints and relationships |
-| `MEMORY.md` | Patient longitudinal health context and AI memory/retrieval design |
-| `WORKFLOW.md` | End-to-end patient, medication, lab, AI, pharmacy and emergency workflows |
-| `API.md` | REST API conventions and endpoint inventory |
-| `SECURITY.md` | Privacy, threat model, access controls and safety requirements |
-| `TESTING.md` | Test strategy and release gates |
+| Phase | Scope | State |
+|---|---|---|
+| 0 | Foundation: Next.js + FastAPI + PostgreSQL/Alembic, Docker Compose, CI, health checks, structured logs | Done |
+| 1 | Auth (email/password, email verification, password reset, Google OAuth), patient profile, conditions, allergies, emergency contacts, consents, accessibility preferences, admin role | Done |
+| 2 | Records & labs: health records with PDF/PNG/JPEG upload and download, lab results with report-range flags and per-test trends | Done |
+| 3 | Medications: catalogue baseline, prescriptions vs self-reported medicines, schedules, dose logs, supplies (lot/expiry), refill and expiry alerts, reminder worker | Done (see notes) |
+| 4 | Medicine safety: ingredient catalogue, curated sourced rules, drug/food/condition/allergy checks, candidate alternatives with dated prices, side-effect notes, authenticity adapter (unsupported by default) | Done (see notes) |
+| 5 | AI assistant: consent-gated retrieval of the patient's own records, cited evidence, safety policy, answer validation, chat sessions | Done (see notes) |
+| 6 | Voice and accessibility: speech adapters, English/Hindi/Odia UI strings, quick display toggles, voice command guardrails | Done (see notes) |
+| 7 | Discovery: sourced pharmacy and doctor directories, reported-stock contract, credential status, appointment requests, educational diet planner | Done (see notes) |
+| 8 | Sharing and emergency: consent-based share links with recipient code check, revocation and access log; minimum-necessary emergency summary; clearly labelled practice ambulance flow; ambulance provider contract (none integrated) | Done; run and verified in Phase 9 |
+| 9 | Admin console (accounts, safety-rule versioning and second-person review, sources and catalogue, feedback moderation, audit review), append-only audit log, authorization sweep over every route, security checks, demo data, release documentation | Done (see Phase 9 notes) |
 
-## Product summary
+Phase 2 notes:
+- Uploads are identified by magic bytes (the client's Content-Type and filename are never trusted), capped at `MAX_UPLOAD_BYTES` (10 MB), stored under random keys in `STORAGE_DIR`, and only ever served back to their owner as attachments. Docker Compose mounts a named volume for them.
+- A lab flag (`low` / `normal` / `high` / `unknown`) is computed by the server from the value and the range printed on the report. It is not an interpretation: the UI says "below/above report range" and never "abnormal".
+- Records and results are never hard-deleted by the user; "remove" sets `entered_in_error`. Editing content resets `verification_status` to `patient_reported`. File downloads are written to the audit log.
+- Endpoints: `/records` (+ `/{id}/file`), `/labs`, `/labs/tests`, `/labs/trend?test_name=`.
 
-MediCare AI is a patient-centred healthcare coordination platform. It combines personal health records, medication tracking, medicine safety information, AI-assisted explanations, pharmacy and doctor discovery, accessibility features, and emergency workflows.
+Phase 3 notes:
+- A medicine is either `prescribed` (linked to a prescription a clinician wrote) or `self_reported` (a medication statement, including over-the-counter use). The server derives this from whether a prescription is linked; the client cannot set it.
+- Schedules are wall-clock times in an IANA time zone (copied from the profile at creation). Doses are materialised as `pending` rows 48 hours ahead; a unique (schedule, slot) constraint makes generation idempotent. DST rules are fixed and tested: a time that falls in a spring-forward gap still happens (at the first valid minute after it), and a time that repeats in a fall-back hour happens once.
+- **A dose is only ever `taken` through an explicit patient action** (`POST /doses/{id}/take`). The worker and the API never mark one taken; "overdue" is derived at read time. Taking a dose uses stock from the pack that expires first; undoing returns it.
+- Alerts (refill, out of stock, expiring, expired) are computed live from supplies and schedules, and the worker turns the same alerts into notifications. Refill reminders repeat at most weekly; expiry reminders are sent once per pack.
+- Reminder email is opt-in (`reminder_email` consent), at most one per patient per tick, and never contains a medicine name.
+- The catalogue holds names, forms and strengths only: no dosing, interactions or advice. Its 14 seed rows are in migration 0003; admins add more with `POST /admin/medicines`.
+- Run the worker with `python -m app.scripts.run_worker` (or `--once`). Docker Compose starts it as the `worker` service.
+- Endpoints: `/medicines`, `/prescriptions`, `/medications` (+ `/schedules`, `/supplies`, `/alerts`), `/schedules/{id}`, `/supplies/{id}`, `/doses` (+ `/take`, `/skip`, `/reset`), `/notifications`.
 
-It is **not** an electronic medical device, clinical decision support system, pharmacy inventory network, doctor credential authority, or ambulance dispatch operator. Those capabilities require validated data, qualified review, provider integrations and jurisdiction-specific compliance. The academic build must clearly label simulated integrations.
+Phase 4 notes:
+- **The bundled safety data is a synthetic demonstration set** (migration 0004: 14 ingredients, 5 rules, source "MediCare AI demonstration dataset", not clinically reviewed). It exists to exercise the checks. Replace it through `/admin` before any real use.
+- Checks return only `findings`, `no_matching_record` or `insufficient_data`. There is no "safe" outcome; the UI never says safe, clear or success. A medicine that cannot be mapped to ingredients, or a patient with no recorded conditions/allergies, gives `insufficient_data`.
+- A patient medicine maps to ingredients through its catalogue link or an exact, unambiguous name match. Conditions match rule terms on whole words (plurals tolerated) or on code; only `active` conditions are used.
+- Every finding carries source, version, jurisdiction and review date. Two rules for one pair that disagree on severity are both shown and flagged `conflict`.
+- Rules are never edited: an admin retires one (`POST /admin/safety-rules/{id}/retire`) and creates a new one. Drug-drug pairs are stored once in canonical order.
+- Alternatives are `candidate`s only when ingredients, strengths (same unit, no conversion), form, route and release type all match. Missing data on the chosen medicine gives `insufficient_data`; it is never guessed.
+- Prices need source, pack size and unit, jurisdiction and an observation time; unit price is computed server-side, and prices older than 90 days are flagged `stale`. Admin-entered only.
+- Authenticity: no authoritative source is integrated. The default adapter answers `unable_to_verify`, and the router downgrades any `verified` that does not name its source.
+- Side-effect notes are private, record what the patient noticed, assert no causation and are sent nowhere. Removal is soft (`entered_in_error`).
+- Audit entries for checks hold counts and outcomes only, never medicine names.
+- Not built: `/safety/medicines/{id}/adverse-effects` (no sourced dataset), second-person review of rules, regulator submission of side-effect notes.
+- Endpoints: `/safety/{drug-drug,drug-food,drug-condition,allergy}/check`, `/safety/medicines/{id}/warnings`, `/safety/authenticity/check`, `/medicines/{id}/alternatives`, `/adverse-events`, and admin `/admin/{sources,ingredients,safety-rules}`, `/admin/medicines/{id}/{composition,prices}`.
 
-## Non-negotiable product rules
+Phase 5 notes:
+- **Retrieval, not memory.** For each question the server runs fixed, owner-scoped queries for only the record kinds the chat has switched on (medicines, history, labs, doses, allergies) and only while the patient's `ai_context` consent is granted. All switches are off by default. Revoking consent stops use immediately, even if switches remain on. The model never sees the database, SQL or credentials, and uploaded file contents are never read.
+- **Fixed responses bypass the model.** Urgent symptoms get emergency guidance; requests to start/stop/change a medicine or dose, and diagnosis requests, are declined with a pointer to a clinician. No records are read for these.
+- **No evidence, no answer.** If nothing relevant is found the assistant says so; it does not answer from general knowledge. Medicine reference notes come from the Phase 4 curated rules with source, version and review date.
+- **Cited evidence.** Every patient fact is an evidence item (`E1`, `E2`, ...) with record id, date, verification status and source. Changes between lab results are calculated by the server only for the same test in the same unit; otherwise results are listed as "not comparable". Same-day conflicts are shown, not merged. Medicine timelines are positional ("before / while recorded active / after"), never causal.
+- **Model drafts are untrusted.** Evidence is sent HTML-escaped inside delimited blocks, with identifiers (name, email, phone) never included and instruction-like free text withheld. The draft is rejected, and the plain records listed instead, if it cites unknown evidence, contains a number not in the evidence, or gives treatment/causal claims. The disclaimer and the association-not-causation note are added by the server.
+- **No model configured is a supported mode.** With `LLM_PROVIDER=none` (default) the assistant lists the matching records itself ("evidence only"). Set `LLM_PROVIDER=anthropic`, `LLM_API_KEY` and optionally `LLM_MODEL` to enable drafting. Review the provider's retention and training settings before use.
+- Each question is answered independently (no earlier answers are fed back). Chats can be deleted (hard delete); `chat_context_access_logs` keeps ids and counts only.
+- Not built: streaming, other languages for server text (the `language` field only asks the model to reply in en/hi/or; Phase 6), retrieval over uploaded-file text/OCR.
+- Endpoints: `/assistant/status`, `/assistant/sessions` (+ `/{id}`, `/{id}/context`, `/{id}/messages`), `/assistant/messages/{id}/evidence`.
 
-1. Patient-owned records are private by default.
-2. The AI assistant uses only authorized, relevant patient context.
-3. AI may explain trends; it must not claim a medicine caused a health change without clinical evidence.
-4. A missing interaction record never means a medicine combination is safe.
-5. OCR output is untrusted until a person confirms it.
-6. A barcode/QR scan alone does not establish medicine authenticity.
-7. Pharmacy stock, doctor availability and ambulance status must never be fabricated.
-8. Emergency flows must not delay contacting local emergency services.
-9. Clinical reference data must have provenance, version, jurisdiction and review date.
-10. The first release prioritizes reliable records and medication workflows over flashy AI features.
+Phase 6 notes:
+- **Voice is optional and off by default.** The `voice_enabled` accessibility preference (My Health > Accessibility) turns on the microphone buttons and read-aloud buttons. Every screen works without them.
+- **Speech lives behind adapters** (`frontend/lib/speech.ts`): one-shot recognition and queued text-to-speech via the browser's Web Speech API. A server-side provider could replace them without touching components. Locales are `en-IN`, `hi-IN`, `or-IN`.
+- **Privacy:** browser speech recognition is normally done by the browser vendor's cloud service, so the UI says so next to the microphone. MediCare AI receives nothing until the patient presses Send.
+- **Dictation never submits.** A transcript is put in the question box as editable text. The patient reads it and presses Send.
+- **Voice commands can only open a page.** `frontend/lib/voice-commands.ts` classifies a transcript as navigate, blocked, emergency or unknown, and has no access to the API. Logging a dose, adding, removing, stopping or changing anything is answered with "use the buttons on the Medicines page". Emergency words show a visible Call 112 link and do nothing else. Two pages named at once, or anything unclear, does nothing. Navigation still needs a tap on Open (Escape or Cancel dismisses it).
+- **Read aloud never performs an action.** Assistant answers can be read aloud with citation markers removed. The doses card reads today's pending doses plus a reminder to check name, strength and time on screen. Text is read only in a voice for its own language (judged by script): with no Hindi or Odia voice installed it says so instead of mispronouncing medical text in another voice.
+- **Languages:** UI strings are in `frontend/lib/i18n/{en,hi,or}.ts` and fall back to English per string. **The Hindi and Odia strings are machine-generated and have not been reviewed by a native speaker**, and the UI says so on every translated screen. Only the app shell, navigation, accessibility settings, voice features, the assistant's input and safety text, and the dose reading are translated; other pages remain in English. The document root stays `lang="en"` and translated strings carry their own `lang`, so screen readers choose the right voice. The assistant now creates chats in the patient's preferred language.
+- **Display:** header toggles for larger text and high contrast save to the profile. `--teal-700` was darkened from `#167C78` to `#157873` because teal text on the mint tint was 4.49:1; contrast of the main text/background pairs, in normal and high-contrast mode, is at least 4.5:1. The mobile navigation was fixed to seven columns (it had six for seven items).
+- **Not done:** native-speaker review of Hindi and Odia, voice confirmation by speaking "yes" (confirmation is a tap), server-side speech providers, translation of the remaining pages and of server-generated text, a manual screen-reader pass with NVDA/VoiceOver/TalkBack and a real-device check of Hindi/Odia voices (only automated tests were run).
+- No backend change was needed; `voice_enabled` already existed.
 
-## Recommended stack
+Phase 7 notes:
+- **Nothing is invented.** Every pharmacy and doctor row names its source (`provider_sources`: publisher, URL, licence, date retrieved) and when that source observed it. Each source has its own `stale_after_hours`; older data is labelled "May be out of date", never hidden. Hours are shown as free text exactly as the source gave them and are never turned into "open now".
+- **Stock is only ever "reported by a source at a time".** `pharmacy_inventory_snapshots` are append-only reports with the source's own timestamp, and the newest per pharmacy and medicine is shown. No feed means "No stock information. Call to confirm", never "out of stock". The `PharmacyInventoryProvider` contract exists (`discovery/providers.py`) but no feed is integrated; stock enters through the validated admin endpoint `POST /admin/pharmacies/{id}/inventory`, the same path an adapter would use.
+- **Doctor credentials are labelled by how they were checked:** `unverified`, `source_listed` (the directory lists it) or `verified`. The database refuses `verified` without a credential source and a verification time. Registration numbers are stored but only shown masked and never audited. Doctors are listed by name or distance, never ranked; there are no reviews or ratings.
+- **Appointment requests do not pretend to be bookings.** A clinic in `request_only` mode (the default) gets a request saved in the app only, and the status text says it was NOT sent. `confirmed` and `declined` exist only with a provider reference and response time (database check), and the only way to set them is the provider-response endpoint, which needs a matching reference. `AppointmentProvider` has no real integration: a `provider`-mode clinic answers "call the clinic" and stores nothing. What an adapter would receive is deliberately minimal (no name, contact or reason).
+- **Location is per search.** Latitude/longitude are query parameters, used for that request and not stored, logged or audited. Distance sort uses a bounding-box pre-filter plus exact great-circle distance; places without coordinates are left out of distance searches.
+- **Map: link-out only (deviation).** Results have a "Show on OpenStreetMap" link that opens openstreetmap.org in a new tab. No tiles are embedded, because OSM's public tile servers are not meant for application traffic and embedding would send the viewed area to a third party. A tiled map needs a tile provider chosen and paid for; the list is the primary view.
+- **Diet planner is deterministic, not a model.** `nutrition/planner.py` builds 7 days from a small curated collection (`catalogue.py`, 52 ideas, versioned). Dietary tags are derived from ingredient words, so filters cannot disagree with what is displayed. Recorded allergies are always applied and recorded conditions are always screened, without the patient opting in. Foods or allergies the catalogue cannot match are flagged, not ignored, and constraints are never relaxed to fill a slot (empty slots stay empty). Kidney disease, a history of an eating disorder, or a child under 12 mean no plan is made (409 `DIETITIAN_REVIEW_REQUIRED`); pregnancy, a clinician-set diet, several conditions, or recorded medicines add review flags. No calories, portions or health claims.
+- **Demo data:** migration 0006 seeds four pharmacies and four doctors, all labelled "(demo)", with invented addresses and coordinates, no phone numbers and no verified credentials. Replace them via the admin endpoints.
+- **Mobile navigation** now scrolls horizontally (nine items) instead of a fixed grid. Hindi and Odia names for the two new nav items are machine-generated; the Find care and Diet pages themselves are English only.
+- **Not built:** a real stock feed, clinic booking integration, doctor-side or admin UI for curating the directory (API only), notifying a patient when a clinic replies, reviews, languages beyond English on the new pages, a manual screen-reader pass of the new pages.
 
-- Frontend: Next.js App Router, React, TypeScript, Tailwind CSS, shadcn/ui-compatible components
-- Backend: Python, FastAPI, Pydantic
-- Database: PostgreSQL, SQLAlchemy 2.x, Alembic
-- Background jobs: Redis + Celery (or a simpler worker initially)
-- Authentication: secure server-side sessions; Google OAuth; email verification/OTP; optional phone OTP through a provider
-- Files: private object storage; local private volume for development
-- OCR: PaddleOCR or a replaceable OCR adapter
-- Maps: OpenStreetMap-based map rendering and geocoding subject to provider terms
-- AI: provider-neutral LLM adapter + retrieval layer
-- Tests: Pytest, Vitest, Playwright
-- Deployment: Docker Compose for development; Nginx/reverse proxy for deployment
+Phase 8 notes:
+- **Run in Phase 9.** Phase 8 was written without a database or npm available. Phase 9 ran it: the Phase 8 backend and frontend tests pass, migration 0007 applies, and `next build` succeeds.
+- **A share is the patient's explicit consent to show a chosen slice to one named person.** The patient picks categories (profile, conditions, allergies, medicines, labs, record list), an optional date range for labs and records, and an expiry (1 hour to 30 days). The create endpoint rejects a request without `confirm: true`, and the UI only enables Share after the exact selection has been previewed (`POST /shares/preview` returns what the recipient would see) and a confirmation box is ticked.
+- **Link and recipient check.** The link holds a random 256-bit token in the URL *fragment* (`/shared#<token>`), so it is never sent to a server or in a Referer. Only its SHA-256 is stored, and the link is shown to the patient once. To open it the recipient asks for a 6-digit code that is emailed to the address the patient named (keyed hash, 10-minute expiry, single use, 5 attempts, resend cooldown), then receives a 15-minute signed view session. Unknown, expired and revoked links give the same answers, so a token cannot be probed.
+- **Revocation and expiry are checked on every request,** including inside an already-open view session, so withdrawing a share ends access on the recipient's next request. Every code request, failed code, verification, view and blocked attempt is stored in `share_access_logs` (event and time only; the patient sees them in the access log, IPs are stored but not shown). Audit rows hold category names and counts, never the recipient's address or any medical content.
+- **What a recipient can never see:** attached files, free-text notes, medicine "reason" fields, removed (`entered_in_error`) items, resolved conditions, stopped medicines, or anything outside the selected categories (a category not shared is `null`, not an empty list). Everything keeps its verification status, lab flags read "above/below report range", and the limitations (not a complete record, patient-reported, listed is not taken) are always shown.
+- **Emergency is reachable without an account.** `/emergency` is public and always shows a `tel:112` link; nothing on the page can place a call or contact anyone. Signed-in patients also see their contacts and can show their own **emergency summary**, which contains only what they switched on in `/emergency/settings` (defaults: blood group, allergies, contacts; conditions and medicines are off). Viewing the summary is audited with counts only. The summary is shown on the patient's screen and is sent nowhere.
+- **Location is explicit and never stored.** The browser only asks when the patient presses a button. Coordinates stay in the page, or go to a dispatch provider on a confirmed request; they are not stored, logged or audited. The practice run records only whether the patient chose to include location.
+- **The ambulance flow is a labelled simulation.** `emergency_simulations` has a database check `mode = 'simulated'`, so a row can never look like a real dispatch. Starting a run needs two confirmations, one run can be open at a time, and it only advances when the patient taps (requested, acknowledged, en route, arrived), with "SIMULATION ONLY ... call 112" on every response and screen.
+- **Real dispatch needs a provider that accepts.** `AmbulanceDispatchProvider` (`emergency/providers.py`) has no integration; the default raises `ProviderUnavailable` and `POST /emergency/dispatch-requests` answers 503 "nothing was requested. Call 112 now." An acceptance without the provider's own reference is also treated as unavailable. `GET /emergency/status` tells the UI whether a provider exists, so the screen shows no request button when none does.
+- **Security-header change:** `Permissions-Policy` in `frontend/next.config.mjs` was `geolocation=()`, which blocks the browser location prompt everywhere (including the Phase 7 "Use my location" button). It is now `geolocation=(self)`. `microphone` is fixed in Phase 9.
+- **Not built:** caregiver delegation (workflow 12), sending the emergency summary to an emergency contact, a real ambulance adapter and its lifecycle storage, shared-file access, notifying a patient when a share is opened, translations of the new pages (only the two nav labels are translated, machine-generated), a manual screen-reader pass, Redis-backed rate limits (still in-process).
+- **Found while building (fixed in Phase 9):** `microphone=()` blocked Phase 6 voice dictation. It is now `microphone=(self)`.
+- Endpoints: `/shares` (+ `/preview`, `/{id}/access`, `/{id}/revoke`), public `/share-access/{start,verify,summary}`, `/emergency/{status,settings,summary,simulations,dispatch-requests}` (+ simulations `/{id}/advance`, `/{id}/cancel`).
 
-## How to use this pack
+Phase 9 notes:
+- **Run for real.** Everything below was run against PostgreSQL 16 and a production build, not just written: backend `ruff` + `pytest` (full suite, migrations applied from scratch, `alembic check` shows no drift), frontend `lint` + `typecheck` + `vitest` + `next build`, and a live browser pass (Playwright + axe-core, including colour contrast) over the admin pages, the feedback page and the dashboard with no violations.
+- **Admin console** (`/admin`, English only). *Overview* (counts), *Safety rules* (add, **write a new version**, version history, retire, second-person approval), *Sources & catalogue* (add and list sources; list, search and add catalogue medicines), *Feedback* (moderation queue), *Accounts* (deactivate / reactivate), *Audit log* (filter by event type and date). The nav link appears only for administrators and the page refuses anyone else; the real boundary is the server (403 on every `/admin` route for a patient, proved by a test over every route).
+- **Rule versioning, never in place.** `POST /admin/safety-rules/{id}/supersede` retires the old row and inserts a new one (`version + 1`, `supersedes_rule_id`) in one transaction; a failed insert rolls the retirement back. `GET .../history` returns the chain from either end. Checks only ever use active rules, so a past result can still be reconstructed from the retired row.
+- **Second-person review is recorded, not enforced as a gate.** `POST .../review` approves a rule as a different administrator (the author gets 403 `SELF_REVIEW`; a database CHECK also refuses a self-approval). It does not change what a check returns, because the PRD marks review as preferred. A new version starts unreviewed. The bundled demonstration rules show as "awaiting second-person review" and are not clinically reviewed.
+- **Audit log is append-only in the database.** A trigger rejects `UPDATE` and `DELETE` on `audit_logs`. The admin viewer shows only `admin.*`, `auth.*` and `feedback.*` events (the PRD says admins see administration activity, not patients' data access), escapes `%`/`_` in filters, and records that it was opened. Feedback audit rows hold the category, never the message.
+- **Platform feedback** (`/feedback`, `POST|GET /feedback`) is separate from adverse-event reports. 5–2000 characters, a category, 10 per hour per user, page paths only (no query strings). The sender sees the status in plain words and never the moderator's note; moderators see an account id prefix, not a name or email. The page tells people not to put health details in it and to call 112 in an emergency.
+- **Accounts.** Deactivation revokes every session at once and blocks sign-in; an admin cannot deactivate themselves, so one active admin always remains. Role changes are still done on the server with `create_admin`.
+- **Authorization sweep** (`tests/test_authorization_matrix.py`) reads every operation from the generated OpenAPI document and checks: anonymous gets 401 except a reviewed public allowlist, a patient gets 403 on every admin route, every state-changing route (admin included) rejects a missing CSRF token, and random identifiers never return 200 or a 5xx. A new endpoint is covered automatically and fails until classified.
+- **Security checks run:** `bandit` (no medium or high findings; two `assert`s replaced by explicit checks), `pip-audit` (clean), `npm audit --omit=dev` (clean; 6 moderate findings are in dev tooling and are not shipped), a repository secrets test, `.env` hygiene, cookie flags, cross-origin rejection, production configuration guards, API headers. **Fixed while doing this:** the backend never sent `Strict-Transport-Security` (now sent when cookies are secure); `.gitignore` did not exclude `storage/` (patient uploads) or `.env.*`; the web app had no `Content-Security-Policy` (now set); `microphone=()` blocked voice dictation.
+- **Demo data:** `DEMO_PASSWORD=... python -m app.scripts.seed_demo` creates a synthetic patient (four HbA1c results, one medicine with a schedule, a condition, an allergy, a contact) and two administrators, through the app's own API, all on `example.com`. It refuses production, never prints the password and is safe to run twice. Walkthrough: `docs/DEMO.md`. Known limitations: `docs/KNOWN_LIMITATIONS.md`.
+- **Not built / not done:** translations of the admin and feedback pages (English only); a manual screen-reader pass (automated axe only); a nonce-based CSP (scripts still allow `'unsafe-inline'` for Next.js); Redis-backed rate limits; admin review of adverse-event reports; creating administrators in the UI; a load test (see `docs/KNOWN_LIMITATIONS.md`).
 
-Treat `PRD.md` as the product source of truth. Treat `SECURITY.md` and the safety constraints in `PRD.md` as release-blocking requirements. When implementation decisions change, update the relevant document and record the decision in `ARCHITECTURE.md` under Architecture Decision Records.
+Multiple AI providers (added after Phase 9):
+- **Configure by name, in order.** `LLM_PROVIDER=gemini,nvidia,openrouter` is a failover chain: the first provider that answers is used; on an error, timeout or empty reply the next is tried. Built-in names: `anthropic`, `gemini`, `nvidia`, `openrouter`, `openai`, `groq`. Each needs `<NAME>_API_KEY` and `<NAME>_MODEL` (Anthropic keeps `LLM_API_KEY` / `LLM_MODEL`). Anything else that speaks the OpenAI `/chat/completions` format (Ollama, vLLM, Together, your own NVIDIA NIM container via `NVIDIA_BASE_URL`) goes in `LLM_CUSTOM_PROVIDERS` as JSON. See `.env.example`.
+- **Three wire formats** cover them: Anthropic Messages, Gemini `generateContent` (key sent in a header, never the URL) and OpenAI-compatible. Reasoning-model `<think>` blocks are stripped.
+- **Resilience:** after `LLM_FAILURE_THRESHOLD` (3) failures in a row a provider is skipped for `LLM_COOLDOWN_SECONDS` (60) so a dead vendor does not slow every answer; if all are paused they are all tried. If every provider fails the assistant falls back to listing the matching records, as before.
+- **Safety is unchanged and provider-independent:** every reply, whichever vendor wrote it, is still an untrusted draft that must pass the same citation and no-diagnosis validation, or it is discarded.
+- **Disclosure is honest:** a question that failed over was sent to more than one vendor, so the patient's data-use log lists *every* provider contacted (`gemini,nvidia`), not just the one that answered. Migration `0009` widens that column. Tell patients which vendors you enable: each receives the same de-identified evidence.
+- **Startup validation:** an unknown name, missing key or model, a non-https endpoint (plain http only for localhost), or a URL with credentials or a query string stops the app from starting.
+- **Admin > AI providers** shows the chain in order, health (working, last failed, paused), counts and the last error, and a Test button that sends one fixed message with no patient data. Keys are never returned. Tests: `tests/test_llm_providers.py` (wire formats against a fake HTTP layer, failover and cool-down, configuration errors, disclosure log, admin endpoints). **Not tested against the live vendors** (no keys or network here): use the Test button after setting a key. Default model names are examples; use ones your account can access.
+
+Deferred from Phase 1: optional phone OTP, caregiver delegation. Onboarding still omits a "current medicines" step; medicines are added from the Medicines page.
+
+## Run it
+
+```bash
+cp .env.example .env            # set POSTGRES_PASSWORD and SECRET_KEY
+docker compose up --build       # web :3000, API :8000, mail catcher :8025
+```
+
+Verification and reset emails appear in Mailpit at http://localhost:8025.
+
+Create an admin: `docker compose run --rm -e ADMIN_PASSWORD=... backend python -m app.scripts.create_admin --email you@example.com`
+
+### Without Docker
+
+```bash
+# backend (needs PostgreSQL 16 with the citext extension)
+cd backend && pip install -r requirements-dev.txt
+cp .env.example .env && alembic upgrade head
+uvicorn app.main:app_factory --factory --reload
+
+# frontend
+cd frontend && npm install && npm run dev
+```
+
+## Test
+
+```bash
+cd backend && ruff check . && pytest          # TEST_DATABASE_URL defaults to localhost medicare_test
+cd frontend && npm run lint && npm run typecheck && npm test && npm run build
+```
+
+## Layout
+
+`backend/app/{core,identity,patients,records,audit,admin,api}` modular monolith (see `docs/ARCHITECTURE.md`);
+`frontend/{app,components,lib}`; decisions in `docs/ARCHITECTURE.md` (ADR-006..008).
+
+## Deployment (GitHub Actions to OCI)
+
+Pushing to `main` runs `.github/workflows/deploy.yml`: CI (`ci.yml`) must pass, then the backend and frontend images are built and pushed to GHCR as `ghcr.io/<owner>/medicare-ai-{backend,frontend}` (tags `latest` and the commit SHA), then the server is updated over SSH and the deploy waits for both services to report healthy. A failed health check fails the workflow and prints the service logs.
+
+Repository secrets: `OCI_HOST`, `OCI_USER`, `OCI_SSH_KEY` (private deploy key), `GHCR_PULL_TOKEN` (a token with `read:packages`). Optional repository variable `OCI_APP_DIR` (default `/home/ubuntu/medicare-ai`).
+
+One-time server setup: install Docker with the compose plugin, let `OCI_USER` use `sudo docker`, and create `OCI_APP_DIR/.env` with `POSTGRES_PASSWORD`, `SECRET_KEY`, `FRONTEND_ORIGINS` (your public https origin), `SMTP_HOST` (and optionally `SMTP_PORT`, `SMTP_FROM`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and for the assistant `LLM_PROVIDER=anthropic`, `LLM_API_KEY`, `LLM_MODEL`; without them the assistant runs in evidence-only mode). The frontend listens on `127.0.0.1:3000`; put a TLS reverse proxy in front of it. Production refuses to start without `COOKIE_SECURE`, a real `SECRET_KEY` and a non-memory email backend. The app's SMTP client has no login support, so `SMTP_HOST` must be a relay that accepts mail from the server (for example a local Postfix relay).
+
+To roll back, re-run the workflow on an earlier commit, or on the server run `IMAGE_PREFIX=ghcr.io/<owner> IMAGE_TAG=<old-sha> docker compose -f docker-compose.prod.yml up -d`.

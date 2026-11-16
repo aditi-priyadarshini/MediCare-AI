@@ -54,9 +54,35 @@ class Settings(BaseSettings):
 
     # AI assistant (Phase 5). "none" = no model: the assistant lists the matching records
     # itself ("evidence only"). Only structured, de-identified evidence is ever sent out.
-    llm_provider: Literal["none", "anthropic"] = "none"
-    llm_api_key: str | None = None
-    llm_model: str = "claude-sonnet-5-5"
+    # LLM_PROVIDER is "none" or an ordered, comma-separated chain, e.g. "gemini,nvidia,openrouter":
+    # the first that answers is used, the next is tried on failure. Built-in names: anthropic,
+    # gemini, nvidia, openrouter, openai, groq, plus any name from LLM_CUSTOM_PROVIDERS.
+    # Each needs <NAME>_API_KEY and <NAME>_MODEL (anthropic uses LLM_API_KEY / LLM_MODEL).
+    # Model names change often: set the ones your account can use.
+    llm_provider: str = "none"
+    llm_api_key: str | None = None  # Anthropic key (kept for backward compatibility)
+    llm_model: str = "claude-sonnet-5-5"  # Anthropic model
+    anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_base_url: str | None = None
+    nvidia_api_key: str | None = None
+    nvidia_model: str = "meta/llama-3.1-70b-instruct"
+    nvidia_base_url: str | None = None  # set to your own NIM, e.g. http://localhost:8000/v1
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "openrouter/auto"
+    openrouter_base_url: str | None = None
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
+    openai_base_url: str | None = None
+    groq_api_key: str | None = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_base_url: str | None = None
+    # JSON list for anything else, e.g.
+    # [{"name":"local","kind":"openai_compatible","base_url":"http://localhost:11434/v1","model":"llama3.1"}]
+    llm_custom_providers: list[dict] = []
+    llm_failure_threshold: int = 3  # failures in a row before a provider is skipped...
+    llm_cooldown_seconds: int = 60  # ...for this long
     llm_timeout_seconds: int = 30
     llm_max_output_tokens: int = 700
     assistant_requests_per_minute: int = 20
@@ -88,8 +114,9 @@ class Settings(BaseSettings):
                 raise ValueError("COOKIE_SECURE must be true in production")
             if self.email_backend == "memory":
                 raise ValueError("EMAIL_BACKEND=memory is not allowed in production")
-        if self.llm_provider == "anthropic" and not self.llm_api_key:
-            raise ValueError("LLM_API_KEY is required when LLM_PROVIDER=anthropic")
+        from app.assistant.provider import resolve_specs  # fail fast on a bad provider chain
+
+        resolve_specs(self)
         return self
 
 

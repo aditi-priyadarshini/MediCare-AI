@@ -129,7 +129,7 @@ class ChatContextAccessLog(Base):
     purpose: Mapped[str] = mapped_column(String(32), nullable=False)
     context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     sources: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
-    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

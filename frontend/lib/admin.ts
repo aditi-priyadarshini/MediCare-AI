@@ -154,3 +154,42 @@ export function dayEndIso(value: string): string | undefined {
   d.setDate(d.getDate() + 1);
   return d.toISOString();
 }
+
+export interface LlmProviderRow {
+  position: number;
+  name: string;
+  kind: string;
+  model: string;
+  host: string;
+  calls: number;
+  failures: number;
+  consecutive_failures: number;
+  cooling_down: boolean;
+  last_ok_at: string | null;
+  last_error: string | null;
+}
+
+export interface LlmProviders {
+  configured: boolean;
+  providers: LlmProviderRow[];
+}
+
+export interface LlmTestResult {
+  name: string;
+  ok: boolean;
+  latency_ms: number;
+  error: string | null;
+}
+
+export const KIND_LABEL: Record<string, string> = {
+  anthropic: "Anthropic",
+  gemini: "Google Gemini",
+  openai_compatible: "OpenAI-compatible (NVIDIA NIM, OpenRouter, …)",
+};
+
+/** One plain-words state per provider; never colour alone. */
+export function providerState(p: Pick<LlmProviderRow, "cooling_down" | "consecutive_failures" | "calls">): string {
+  if (p.cooling_down) return "Paused after repeated failures";
+  if (p.consecutive_failures > 0) return "Last request failed";
+  return p.calls === 0 ? "Not used yet" : "Working";
+}

@@ -171,6 +171,7 @@ Plan errors: `PREFERENCES_REQUIRED` (409), `DIETITIAN_REVIEW_REQUIRED` (409, no 
 - `/admin/users` (GET), `/admin/users/{id}/deactivate|reactivate` (POST)
 - `/admin/medicines` (GET `?q=`, POST), `/admin/overview` (GET counts)
 - `/admin/safety-rules/{id}/supersede` (POST a full rule body: new version, old retired), `/history` (GET), `/review` (POST, second administrator), `/retire` (POST)
+- `/admin/llm/providers` (GET: ordered chain, health, no keys), `/admin/llm/providers/{name}/test` (POST, 10/min)
 - Patient: `POST /feedback`, `GET /feedback` (own only)
 
 Admin endpoints require explicit role and permission checks.

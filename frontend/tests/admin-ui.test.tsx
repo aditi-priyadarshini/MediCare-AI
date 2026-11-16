@@ -4,6 +4,7 @@ import { configureAxe } from "vitest-axe";
 import * as axeMatchers from "vitest-axe/matchers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountsTable } from "@/components/admin/AccountsTable";
+import { AiProviders } from "@/components/admin/AiProviders";
 import { AdminOverviewCard } from "@/components/admin/AdminOverviewCard";
 import { AuditLogView } from "@/components/admin/AuditLogView";
 import { FeedbackModeration } from "@/components/admin/FeedbackModeration";
@@ -283,5 +284,36 @@ describe("patient feedback form", () => {
     const list = await screen.findByRole("list");
     expect(within(list).getByText(/Acted on/)).toBeInTheDocument();
     expect(within(list).getByText("It crashed")).toBeInTheDocument();
+  });
+});
+
+describe("AI providers", () => {
+  const row = (over = {}) => ({
+    position: 1, name: "gemini", kind: "gemini", model: "gemini-2.5-flash", host: "generativelanguage.googleapis.com",
+    calls: 4, failures: 1, consecutive_failures: 0, cooling_down: false, last_ok_at: "2026-11-16T10:00:00Z", last_error: null, ...over,
+  });
+
+  it("lists the chain in order, never a key, and reports a test result in words", async () => {
+    api.mockImplementation(async (path: string, opts?: { method?: string }) =>
+      opts?.method === "POST"
+        ? { name: "nvidia", ok: false, latency_ms: 800, error: "nvidia request failed (HTTPStatusError)." }
+        : { configured: true, providers: [row(), row({ position: 2, name: "nvidia", kind: "openai_compatible", cooling_down: true, consecutive_failures: 3 })] },
+    );
+    const user = userEvent.setup();
+    const { container } = render(<AiProviders />);
+    expect(await screen.findByText(/1\. gemini/)).toBeInTheDocument();
+    expect(screen.getByText("Paused after repeated failures")).toBeInTheDocument();
+    expect(screen.getByText("Working")).toBeInTheDocument();
+    expect(screen.queryByText(/api[_ ]?key\s*[:=]/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Test nvidia" }));
+    expect(await screen.findByText(/Failed: nvidia request failed/)).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith("/admin/llm/providers/nvidia/test", { method: "POST" });
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("explains evidence-only mode when nothing is configured", async () => {
+    api.mockResolvedValue({ configured: false, providers: [] });
+    render(<AiProviders />);
+    expect(await screen.findByText("No AI provider is configured")).toBeInTheDocument();
   });
 });

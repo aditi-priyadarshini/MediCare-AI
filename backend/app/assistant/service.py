@@ -127,9 +127,13 @@ def answer_question(
                 user=build_user_prompt(bundle, policy.redact_question(question), language),
                 max_tokens=max_tokens,
             )
-        except LLMUnavailable:
+        except LLMUnavailable as exc:
             metadata.update(mode="fallback", rejected=["provider_unavailable"])
+            if exc.attempted:
+                metadata["providers_contacted"] = list(exc.attempted)
         else:
+            if result.attempted:
+                metadata["providers_contacted"] = list(result.attempted)
             checked = validate_answer(result.text, bundle, question)
             if checked.ok:
                 body = result.text.strip()
@@ -283,7 +287,10 @@ def persist_exchange(
                     for i in answer.items
                     if i.source_record_id
                 ],
-                provider=provider_name[:32],
+                # Every vendor sent this evidence (a failover may have contacted several).
+                provider=",".join(answer.metadata.get("providers_contacted") or [provider_name])[
+                    :128
+                ],
             )
         )
 

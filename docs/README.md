@@ -57,7 +57,3 @@ It is **not** an electronic medical device, clinical decision support system, ph
 ## How to use this pack
 
 Treat `PRD.md` as the product source of truth. Treat `SECURITY.md` and the safety constraints in `PRD.md` as release-blocking requirements. When implementation decisions change, update the relevant document and record the decision in `ARCHITECTURE.md` under Architecture Decision Records.
-
-## Configuration guides
-
-- [AI assistant configuration](AI_CONFIGURATION.md) — provider support, environment variables, secret handling, privacy notes and troubleshooting.

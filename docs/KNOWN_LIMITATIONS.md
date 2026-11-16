@@ -21,3 +21,5 @@
 - Accessibility was checked with automated tools (axe-core in jsdom and in a real browser, including colour contrast). **No manual screen-reader pass has been done.**
 - Performance: list endpoints are paginated and capped and the audit log has indexes for its filters, but there has been **no load test**. Do not claim capacity figures.
 - Caregiver delegation, doctor-side accounts, real notifications to clinics and adverse-event review by administrators are not built.
+- AI provider adapters are tested against a fake HTTP layer, not live vendor APIs; vendor request formats and model names change, so run the admin Test button after configuring.
+- Provider health counters live in process memory (per instance, reset on restart).
