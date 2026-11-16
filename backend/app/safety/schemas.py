@@ -354,6 +354,12 @@ class RuleOut(BaseModel):
     status: Literal["active", "retired"]
     retired_at: datetime | None
     created_at: datetime
+    version: int = 1
+    supersedes_rule_id: uuid.UUID | None = None
+    review_status: Literal["unreviewed", "approved"] = "unreviewed"
+    reviewed_by_user_id: uuid.UUID | None = None
+    peer_reviewed_at: datetime | None = None
+    created_by_user_id: uuid.UUID | None = None
 
 
 class PriceIn(BaseModel):

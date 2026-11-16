@@ -1,8 +1,24 @@
+# Secrets and local configuration. Only *.example files are ever committed.
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Uploaded patient files (default STORAGE_DIR=./storage) must never be committed.
+storage/
+backend/storage/
+
+# Tooling output
 .venv
 __pycache__/
+*.pyc
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+coverage/
 node_modules/
 .next/
-*.pyc
+*.log

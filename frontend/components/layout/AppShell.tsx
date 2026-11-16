@@ -1,6 +1,6 @@
 "use client";
 
-import { Apple, FileText, FlaskConical, HeartPulse, Home, LogOut, MapPin, MessageSquare, Pill, Share2, ShieldAlert, ShieldCheck, Siren } from "lucide-react";
+import { Apple, FileText, MessageSquarePlus, Settings2, FlaskConical, HeartPulse, Home, LogOut, MapPin, MessageSquare, Pill, Share2, ShieldAlert, ShieldCheck, Siren } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/brand";
@@ -23,11 +23,19 @@ const NAV: Array<{ href: string; label: MessageKey; icon: typeof Home }> = [
   { href: "/assistant", label: "nav.assistant", icon: MessageSquare },
 ];
 
+/** Not translated: the Admin console and Feedback form are English only (see README, Phase 9). */
+const EXTRA: Array<{ href: string; label: string; icon: typeof Home; adminOnly?: boolean }> = [
+  { href: "/feedback", label: "Feedback", icon: MessageSquarePlus },
+  { href: "/admin", label: "Admin", icon: Settings2, adminOnly: true },
+];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const { t, language } = useT();
+  const extra = EXTRA.filter((x) => !x.adminOnly || user?.role === "admin");
+  const isCurrent = (href: string) => (href === "/admin" ? pathname.startsWith("/admin") : pathname === href);
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
@@ -56,6 +64,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Icon className="h-5 w-5" aria-hidden />
               <Tr k={label} />
+            </Link>
+          ))}
+          {extra.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              aria-current={isCurrent(href) ? "page" : undefined}
+              className={cn(
+                "flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium",
+                isCurrent(href) ? "bg-white/15" : "hover:bg-white/10",
+              )}
+            >
+              <Icon className="h-5 w-5" aria-hidden />
+              {label}
             </Link>
           ))}
         </nav>
@@ -114,6 +136,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Icon className="h-5 w-5" aria-hidden />
             <Tr k={label} />
+          </Link>
+        ))}
+        {extra.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            aria-current={isCurrent(href) ? "page" : undefined}
+            className={cn(
+              "flex min-h-[56px] min-w-[72px] flex-1 flex-col items-center justify-center gap-0.5 break-words px-1 text-center text-[0.68rem] font-medium leading-tight",
+              isCurrent(href) ? "text-teal-700" : "text-ink-soft",
+            )}
+          >
+            <Icon className="h-5 w-5" aria-hidden />
+            {label}
           </Link>
         ))}
       </nav>

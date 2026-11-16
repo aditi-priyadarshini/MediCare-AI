@@ -1,20 +1,38 @@
-import type { Metadata, Viewport } from "next";
-import { AuthProvider } from "@/lib/auth-context";
-import "./globals.css";
+"use client";
 
-export const metadata: Metadata = {
-  title: { default: "MediCare AI", template: "%s · MediCare AI" },
-  description: "Your health, connected.",
-};
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { Logo } from "@/components/brand";
+import { PageLoading } from "@/components/ui/primitives";
+import { useAuth } from "@/lib/auth-context";
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#123B43" };
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const { status, user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    if (status !== "authenticated" || !user) return;
+    if (user.email_verified) router.replace("/dashboard");
+    else if (pathname !== "/verify-email") router.replace("/verify-email");
+  }, [status, user, pathname, router]);
+
+  if (status === "loading") return <PageLoading />;
+  const redirecting =
+    status === "authenticated" && user && (user.email_verified || pathname !== "/verify-email");
+  if (redirecting) return <PageLoading label="Redirecting" />;
+
   return (
-    <html lang="en">
-      <body className="min-h-screen font-sans">
-        <AuthProvider>{children}</AuthProvider>
-      </body>
-    </html>
+    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
+      <div className="mb-6">
+        <Logo />
+      </div>
+      <div className="w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-sm sm:p-8">
+        {children}
+      </div>
+      <p className="mt-6 max-w-md text-center text-xs text-ink-soft">
+        Academic demonstration build. Use synthetic data only; do not enter real medical records.
+      </p>
+    </main>
   );
 }

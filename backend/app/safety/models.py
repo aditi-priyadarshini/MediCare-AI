@@ -95,6 +95,14 @@ class SafetyRule(Base):
             name="severity_valid",
         ),
         CheckConstraint("status IN ('active','retired')", name="status_valid"),
+        CheckConstraint("review_status IN ('unreviewed','approved')", name="review_status_valid"),
+        CheckConstraint("version >= 1", name="version_positive"),
+        CheckConstraint(
+            "review_status = 'unreviewed' OR (reviewed_by_user_id IS NOT NULL "
+            "AND peer_reviewed_at IS NOT NULL "
+            "AND reviewed_by_user_id IS DISTINCT FROM created_by_user_id)",
+            name="review_is_second_person",
+        ),
         CheckConstraint(
             "(kind = 'drug_drug' AND counterpart_ingredient_id IS NOT NULL "
             "AND counterpart_term IS NULL AND ingredient_id < counterpart_ingredient_id) "
@@ -151,6 +159,19 @@ class SafetyRule(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Versioning: a change is a new row that supersedes the old one, which is retired.
+    version: Mapped[int] = mapped_column(nullable=False, default=1, server_default="1")
+    supersedes_rule_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("safety_rules.id", ondelete="RESTRICT"), index=True
+    )
+    # Second-person review: preferred, not required to be live. The reviewer cannot be the author.
+    review_status: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="unreviewed", server_default="unreviewed"
+    )
+    reviewed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    peer_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class MedicinePrice(Base):

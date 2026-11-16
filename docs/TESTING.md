@@ -77,6 +77,17 @@
 - Security: Bandit, pip-audit, npm audit, OWASP ZAP baseline.
 - CI: run lint, type checks, unit tests and integration tests on pull request.
 
+### Admin and release (Phase 9)
+- Every route: anonymous 401, patient 403 on admin, CSRF required, random ids never succeed.
+- Rule versioning: supersede links and retires atomically; failed supersede leaves the old rule active; second-person review refuses the author (API and database).
+- Audit log: append-only at the database; viewer scope; filters escape wildcards.
+- Accounts: deactivation signs the user out and blocks login; no self-deactivation.
+- Feedback: isolation between patients, moderation, no message text in audit rows, rate limit.
+- Release: demo seed is synthetic and idempotent and refuses production; headers; cookie flags; secrets scan; production config guards.
+- Accessibility: `vitest-axe` on every new component, plus a live-browser axe-core run (incl. colour contrast) over the built app.
+
+Run it: `cd backend && ruff check . && ruff format --check . && pytest && bandit -r app -ll && pip-audit -r requirements.txt`; `cd frontend && npm run lint && npm run typecheck && npm test && npm run build && npm audit --omit=dev`.
+
 ## 4. Release gate
 
 A feature is not Done because the page renders. It is Done only when:

@@ -149,6 +149,23 @@ Use synthetic data for academic demos. Never use real patient records without an
 - AI record retrieval respects consent and ownership.
 
 
+## 11a. Phase 9 verification (status of the list above)
+
+| Check | How it is proved |
+|---|---|
+| Cross-user access | Per-resource ownership tests plus a sweep that sends random identifiers to every parameterised route (no 200, no 5xx) |
+| Patient cannot reach admin | Every `/admin` operation, read from OpenAPI, returns 403 to a patient (`test_authorization_matrix.py`) |
+| CSRF | Every state-changing route, admin included, rejects a missing token |
+| Anonymous access | Everything but an explicit public allowlist returns 401 |
+| Audit integrity | Database trigger rejects UPDATE/DELETE on `audit_logs`; viewer excludes patient data-access events |
+| Secrets | `test_no_secrets_in_repository`, `.env` hygiene tests, gitleaks in CI, `.gitignore` covers `.env.*` and `storage/` |
+| Headers | API: CSP `default-src 'none'`, nosniff, no-store, HSTS when cookies are secure. Web: CSP, HSTS, frame denial, Permissions-Policy |
+| Dependencies | `pip-audit` clean; `npm audit --omit=dev` clean (CI fails on high) |
+| Static analysis | `bandit -r app`: no medium/high findings |
+| Rate limits | Feedback (10/h/user) tested; auth and share limits tested in earlier phases |
+
+Remaining accepted limitations are in `docs/KNOWN_LIMITATIONS.md`. This is an academic build, not a certified medical device and not a substitute for an independent penetration test.
+
 ## 12. Phase 1 known limitations (accepted for the academic build)
 
 - **Registration reveals whether an email is registered** (HTTP 409). Login, password-reset and

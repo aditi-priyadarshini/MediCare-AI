@@ -119,6 +119,10 @@ def create_app(
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["Referrer-Policy"] = "no-referrer"
             response.headers["Cache-Control"] = "no-store"
+            if settings.cookie_secure:  # i.e. served over HTTPS (production requires it)
+                response.headers["Strict-Transport-Security"] = (
+                    "max-age=31536000; includeSubDomains"
+                )
             if not request.url.path.startswith(("/docs", "/openapi")):
                 response.headers["Content-Security-Policy"] = API_CSP
             log.info(

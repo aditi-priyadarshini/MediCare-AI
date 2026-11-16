@@ -1,16 +1,11 @@
-"use client";
+import type { Metadata } from "next";
+import { SharedClient } from "@/components/sharing/SharedClient";
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { PageLoading } from "@/components/ui/primitives";
-import { useAuth } from "@/lib/auth-context";
+export const metadata: Metadata = {
+  title: "Shared health information",
+  robots: { index: false, follow: false },
+};
 
-export default function Home() {
-  const { status } = useAuth();
-  const router = useRouter();
-  useEffect(() => {
-    if (status === "authenticated") router.replace("/dashboard");
-    if (status === "anonymous") router.replace("/login");
-  }, [status, router]);
-  return <PageLoading />;
+export default function SharedPage() {
+  return <SharedClient />;
 }

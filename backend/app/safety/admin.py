@@ -165,8 +165,7 @@ def list_rules(
     return {"items": rows, "total": total, "limit": params.limit, "offset": params.offset}
 
 
-@router.post("/safety-rules", response_model=RuleOut, status_code=201)
-def create_rule(body: RuleIn, request: Request, admin: AdminUser, db: DbDep):
+def _validated_rule_row(db: Session, body: RuleIn, admin, **extra) -> SafetyRule:
     wanted = {body.ingredient_id} | ({body.counterpart_ingredient_id} - {None})
     if (
         set(db.scalars(select(ActiveIngredient.id).where(ActiveIngredient.id.in_(wanted))))
@@ -182,7 +181,19 @@ def create_rule(body: RuleIn, request: Request, admin: AdminUser, db: DbDep):
         data["ingredient_id"], data["counterpart_ingredient_id"] = a, b
     if data["counterpart_term"]:
         data["counterpart_term"] = eng.normalize(data["counterpart_term"])
-    row = SafetyRule(created_by_user_id=admin.id, status="active", **data)
+    return SafetyRule(created_by_user_id=admin.id, status="active", **data, **extra)
+
+
+def _rule_or_404(db: Session, rule_id: uuid.UUID) -> SafetyRule:
+    row = db.get(SafetyRule, rule_id)
+    if row is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "The requested resource was not found.")
+    return row
+
+
+@router.post("/safety-rules", response_model=RuleOut, status_code=201)
+def create_rule(body: RuleIn, request: Request, admin: AdminUser, db: DbDep):
+    row = _validated_rule_row(db, body, admin)
     db.add(row)
     try:
         db.flush()
@@ -196,11 +207,73 @@ def create_rule(body: RuleIn, request: Request, admin: AdminUser, db: DbDep):
     return row
 
 
+@router.get("/safety-rules/{rule_id}/history", response_model=list[RuleOut])
+def rule_history(rule_id: uuid.UUID, admin: AdminUser, db: DbDep):
+    """Every version of a rule, oldest first, following supersession links in both directions."""
+    row = _rule_or_404(db, rule_id)
+    chain = [row]
+    seen = {row.id}
+    cursor = row
+    while cursor.supersedes_rule_id and cursor.supersedes_rule_id not in seen:
+        cursor = db.get(SafetyRule, cursor.supersedes_rule_id)
+        chain.insert(0, cursor)
+        seen.add(cursor.id)
+    cursor = row
+    while True:
+        nxt = db.scalar(select(SafetyRule).where(SafetyRule.supersedes_rule_id == cursor.id))
+        if nxt is None or nxt.id in seen:
+            break
+        chain.append(nxt)
+        seen.add(nxt.id)
+        cursor = nxt
+    return chain
+
+
+@router.post("/safety-rules/{rule_id}/supersede", response_model=RuleOut, status_code=201)
+def supersede_rule(rule_id: uuid.UUID, body: RuleIn, request: Request, admin: AdminUser, db: DbDep):
+    """Replace an active rule with a new version. The old row is kept, retired and linked;
+    nothing is edited in place, so what a past check used can always be reconstructed."""
+    old = _rule_or_404(db, rule_id)
+    if old.status != "active":
+        raise AppError(409, "RULE_NOT_ACTIVE", "Only an active rule can be superseded.")
+    if body.kind != old.kind:
+        raise AppError(422, "VALIDATION_ERROR", "A new version must keep the rule's kind.")
+    new = _validated_rule_row(db, body, admin, version=old.version + 1, supersedes_rule_id=old.id)
+    old.status, old.retired_at = "retired", datetime.now(UTC)
+    db.flush()  # free the unique "one active rule per pair and source version" slot first
+    db.add(new)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise AppError(
+            409, "ALREADY_EXISTS", "An active rule from that source and version already exists."
+        ) from exc
+    _audit(db, "admin.rule_supersede", request, admin, "safety_rule", new.id)
+    db.commit()
+    return new
+
+
+@router.post("/safety-rules/{rule_id}/review", response_model=RuleOut)
+def review_rule(rule_id: uuid.UUID, request: Request, admin: AdminUser, db: DbDep):
+    """Second-person approval. The author of a rule cannot approve it (also enforced by a
+    database check). Approval records who and when; it does not change what checks return."""
+    row = _rule_or_404(db, rule_id)
+    if row.status != "active":
+        raise AppError(409, "RULE_NOT_ACTIVE", "Only an active rule can be reviewed.")
+    if row.created_by_user_id == admin.id:
+        raise AppError(403, "SELF_REVIEW", "A rule must be reviewed by a different administrator.")
+    if row.review_status != "approved":
+        row.review_status = "approved"
+        row.reviewed_by_user_id, row.peer_reviewed_at = admin.id, datetime.now(UTC)
+        _audit(db, "admin.rule_review", request, admin, "safety_rule", row.id)
+        db.commit()
+    return row
+
+
 @router.post("/safety-rules/{rule_id}/retire", response_model=RuleOut)
 def retire_rule(rule_id: uuid.UUID, request: Request, admin: AdminUser, db: DbDep):
-    row = db.get(SafetyRule, rule_id)
-    if row is None:
-        raise AppError(404, "RESOURCE_NOT_FOUND", "The requested resource was not found.")
+    row = _rule_or_404(db, rule_id)
     if row.status == "active":
         row.status, row.retired_at = "retired", datetime.now(UTC)
         _audit(db, "admin.rule_retire", request, admin, "safety_rule", row.id)

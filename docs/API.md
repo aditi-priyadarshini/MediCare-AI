@@ -166,8 +166,12 @@ Plan errors: `PREFERENCES_REQUIRED` (409), `DIETITIAN_REVIEW_REQUIRED` (409, no 
 - `/admin/pharmacies` (POST), `/admin/pharmacies/{id}/retire`, `/admin/pharmacies/{id}/inventory` (POST a stock report naming its source and observation time)
 - `/admin/doctors` (POST), `/admin/doctors/{id}/retire`, `/admin/doctors/{id}/credentials` (POST; `verified` needs a credential source and time)
 - `/admin/appointments/{id}/provider-response` (POST; stand-in for a clinic's reply, needs the matching provider reference)
-- `/admin/feedback`
-- `/admin/audit-logs`
+- `/admin/feedback` (GET `?status=new|reviewed|actioned|dismissed|all`), `/admin/feedback/{id}/moderate` (POST `{status, note}`)
+- `/admin/audit-logs` (GET; `action` prefix, `actor_user_id`, `since`, `until`; shows `admin.*`, `auth.*`, `feedback.*` only)
+- `/admin/users` (GET), `/admin/users/{id}/deactivate|reactivate` (POST)
+- `/admin/medicines` (GET `?q=`, POST), `/admin/overview` (GET counts)
+- `/admin/safety-rules/{id}/supersede` (POST a full rule body: new version, old retired), `/history` (GET), `/review` (POST, second administrator), `/retire` (POST)
+- Patient: `POST /feedback`, `GET /feedback` (own only)
 
 Admin endpoints require explicit role and permission checks.
 

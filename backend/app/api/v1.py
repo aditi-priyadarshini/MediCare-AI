@@ -5,6 +5,7 @@ from app.assistant.router import router as assistant_router
 from app.discovery.admin import router as discovery_admin_router
 from app.discovery.router import router as discovery_router
 from app.emergency.router import router as emergency_router
+from app.feedback.router import router as feedback_router
 from app.identity.router import router as auth_router
 from app.medications.router import router as medications_router
 from app.nutrition.router import router as nutrition_router
@@ -28,3 +29,4 @@ api_v1.include_router(discovery_admin_router)
 api_v1.include_router(nutrition_router)
 api_v1.include_router(sharing_router)
 api_v1.include_router(emergency_router)
+api_v1.include_router(feedback_router)

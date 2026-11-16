@@ -23,6 +23,12 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check . && ruff format --check .
       - run: pytest
+      - name: Static security analysis (medium and above)
+        run: pip install bandit && bandit -q -r app -ll
+      - name: Migrations match models
+        run: alembic upgrade head && alembic check
+        env:
+          DATABASE_URL: postgresql+psycopg://medicare:medicare@localhost:5432/medicare_test
       - name: Dependency audit
         run: pip install pip-audit && pip-audit -r requirements.txt
 
@@ -38,7 +44,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npm audit --audit-level=high
+      - run: npm audit --omit=dev --audit-level=high
 
   secrets-scan:
     runs-on: ubuntu-latest

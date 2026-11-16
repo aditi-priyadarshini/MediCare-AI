@@ -16,9 +16,10 @@ Situation = Literal[
     "clinician_diet",
 ]
 
-assert set(DIET_TYPES) == set(DietType.__args__)  # type: ignore[attr-defined]
-assert set(CUISINES) == set(Cuisine.__args__)  # type: ignore[attr-defined]
-assert set(SITUATIONS) == set(Situation.__args__)  # type: ignore[attr-defined]
+# Import-time consistency check (an explicit raise survives `python -O`, unlike assert).
+for _values, _type in ((DIET_TYPES, DietType), (CUISINES, Cuisine), (SITUATIONS, Situation)):
+    if set(_values) != set(_type.__args__):  # type: ignore[attr-defined]
+        raise RuntimeError(f"{_type} and its value list have drifted apart")
 
 
 class FlagOut(BaseModel):

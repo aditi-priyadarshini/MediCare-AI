@@ -9,10 +9,15 @@ from app.core.db import Base
 
 
 class AuditLog(Base):
-    """Append-only. Never store full medical content here: IDs and event metadata only."""
+    """Append-only (a database trigger rejects UPDATE and DELETE; see migration 0008).
+    Never store full medical content here: IDs and event metadata only."""
 
     __tablename__ = "audit_logs"
-    __table_args__ = (Index("ix_audit_logs_actor_created", "actor_user_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_audit_logs_actor_created", "actor_user_id", "created_at"),
+        Index("ix_audit_logs_created", "created_at"),
+        Index("ix_audit_logs_action_created", "action", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(

@@ -174,6 +174,8 @@ Exit criteria:
 
 ## Phase 9 — Admin, security, QA and release (1–2 weeks)
 
+*Status: done. See README "Phase 9 notes" for what was built and what was not.*
+
 Tasks:
 - Admin catalogue and source management.
 - Interaction-rule versioning.

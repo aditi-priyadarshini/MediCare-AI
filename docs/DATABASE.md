@@ -498,3 +498,12 @@ Migration `0007_sharing_and_emergency`:
   include_medications, include_contacts)`: created on first save; absent means the defaults.
 - `emergency_simulations(patient_user_id, mode, status, location_shared, history JSONB)`: CHECK `mode = 'simulated'`
   and a status list. Coordinates are never stored. A real dispatch has no table yet.
+
+## 7. Phase 9 implementation notes (as built)
+
+Migration `0008_admin_release`:
+
+- `feedback(user_id, category, message, page, status, moderator_note, moderated_by_user_id, moderated_at)`. CHECKs: category and status lists; a non-`new` status must record who and when. `user_id` is `ON DELETE RESTRICT`.
+- `safety_rules` gains `version`, `supersedes_rule_id` (self FK, RESTRICT), `review_status` (`unreviewed|approved`), `reviewed_by_user_id`, `peer_reviewed_at`. CHECK `review_is_second_person`: an approval needs a reviewer and time, and the reviewer cannot be `created_by_user_id`.
+- `audit_logs` is append-only: trigger `audit_logs_no_change` raises on UPDATE or DELETE. New indexes `(created_at)` and `(action, created_at)`.
+- `alembic check` reports no drift between models and migrations.

@@ -10,7 +10,6 @@ import {
   outcomeText,
   parseList,
   SEVERITY_LABEL,
-  SEVERITY_TONE,
   sourceLine,
 } from "@/lib/safety";
 import type { SafetyCheck, SafetyCheckName, SafetyChecks, SafetyFinding } from "@/lib/types";
