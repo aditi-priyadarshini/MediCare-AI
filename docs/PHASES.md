@@ -228,3 +228,22 @@ Suggested weekly split:
 - 10% design/accessibility review
 
 Keep a visible issue board with `Backlog`, `Ready`, `In Progress`, `Review`, `Done`, and `Blocked`.
+
+
+## UI/UX redesign track (phases A–G)
+
+Backend phases 0–9 above are complete. The frontend redesign is planned separately in [`UI_REDESIGN/`](UI_REDESIGN/README.md) so letters (A–G) do not collide with the numbered phases.
+
+| Phase | Outcome |
+|---|---|
+| A | Audit and green baseline |
+| B | Design tokens, primitives, preferences system |
+| C | App shell: sidebar, topbar, mobile nav, notifications, command palette, settings |
+| D1 | Dashboard and onboarding |
+| D2 | Profile, records, labs, medications |
+| E1 | AI assistant |
+| E2 | Safety, diet, care, sharing, feedback, emergency, shared viewer |
+| F | Admin console and authentication screens |
+| G | Polish, accessibility, validation, final report |
+
+Order: A → B → C, then D1, D2, E1, E2 and F in any order, then G. Do not start page work before B and C are merged. No backend changes are part of this track.
