@@ -284,7 +284,12 @@ def advance_simulation(sim_id: uuid.UUID, request: Request, user: CurrentUser, d
     row.status = nxt
     row.history = [*row.history, {"status": nxt, "at": _now().isoformat()}]
     record(
-        db, "emergency.simulation.advance", request, user.id, "emergency_simulation", row.id,
+        db,
+        "emergency.simulation.advance",
+        request,
+        user.id,
+        "emergency_simulation",
+        row.id,
         {"status": nxt},
     )
     db.commit()
@@ -315,20 +320,28 @@ def request_dispatch(body: DispatchIn, request: Request, user: CurrentUser, db: 
     request_id = uuid.uuid4()
     provider = request.app.state.ambulance
     try:
-        acceptance = provider.request(
-            DispatchRequest(request_id, body.latitude, body.longitude)
-        )
+        acceptance = provider.request(DispatchRequest(request_id, body.latitude, body.longitude))
         if not acceptance.reference or not acceptance.reference.strip():
             raise ProviderUnavailable("Acceptance without a provider reference.")
     except ProviderUnavailable:
         record(
-            db, "emergency.dispatch", request, user.id, "emergency_dispatch", request_id,
+            db,
+            "emergency.dispatch",
+            request,
+            user.id,
+            "emergency_dispatch",
+            request_id,
             {"outcome": "unavailable"},
         )
         db.commit()
         raise AppError(503, "AMBULANCE_PROVIDER_UNAVAILABLE", DISPATCH_UNAVAILABLE) from None
     record(
-        db, "emergency.dispatch", request, user.id, "emergency_dispatch", request_id,
+        db,
+        "emergency.dispatch",
+        request,
+        user.id,
+        "emergency_dispatch",
+        request_id,
         {"outcome": "accepted", "provider_reference": acceptance.reference},
     )
     db.commit()

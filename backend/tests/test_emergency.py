@@ -92,9 +92,13 @@ def test_summary_views_are_audited_with_counts_only(alice, db):
 
 # ----------------------------------------------------------------- practice flow
 def test_practice_run_needs_two_confirmations(alice):
-    for body in ({}, {"confirm": True}, {"understand_simulation": True},
-                 {"confirm": False, "understand_simulation": True},
-                 {"confirm": True, "understand_simulation": False}):
+    for body in (
+        {},
+        {"confirm": True},
+        {"understand_simulation": True},
+        {"confirm": False, "understand_simulation": True},
+        {"confirm": True, "understand_simulation": False},
+    ):
         assert alice.post("/emergency/simulations", json=body).status_code == 422, body
     assert alice.get("/emergency/simulations").json() == []
 
@@ -155,9 +159,7 @@ def test_database_refuses_anything_that_is_not_a_simulation(alice, db):
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
-    odd = EmergencySimulation(
-        patient_user_id=uid, mode="simulated", status="confirmed", history=[]
-    )
+    odd = EmergencySimulation(patient_user_id=uid, mode="simulated", status="confirmed", history=[])
     db.add(odd)
     with pytest.raises(IntegrityError):
         db.commit()
@@ -206,8 +208,12 @@ def test_status_says_whether_dispatch_exists(alice, settings, outbox):
 
 
 def test_dispatch_needs_confirmation_and_real_coordinates(alice):
-    for bad in ({**DISPATCH, "confirm": False}, {"latitude": LAT, "longitude": LON},
-                {**DISPATCH, "latitude": 91}, {**DISPATCH, "longitude": -181}):
+    for bad in (
+        {**DISPATCH, "confirm": False},
+        {"latitude": LAT, "longitude": LON},
+        {**DISPATCH, "latitude": 91},
+        {**DISPATCH, "longitude": -181},
+    ):
         assert alice.post("/emergency/dispatch-requests", json=bad).status_code == 422, bad
 
 

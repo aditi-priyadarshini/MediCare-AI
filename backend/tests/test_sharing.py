@@ -25,8 +25,14 @@ SHARE = {
     "confirm": True,
 }
 PROFILE = {"display_name": "Alice Das", "blood_group": "O+", "timezone": "Asia/Kolkata"}
-HB = {"test_name": "Hemoglobin", "value_numeric": 11.2, "unit": "g/dL", "ref_low": 12.0,
-      "ref_high": 15.5, "observed_on": "2026-11-01"}
+HB = {
+    "test_name": "Hemoglobin",
+    "value_numeric": 11.2,
+    "unit": "g/dL",
+    "ref_low": 12.0,
+    "ref_high": 15.5,
+    "observed_on": "2026-11-01",
+}
 OLD_HB = {**HB, "value_numeric": 13.0, "observed_on": "2025-02-01"}
 SECRET_NOTE = "private-note-xyz"
 
@@ -41,11 +47,18 @@ def seed(alice) -> dict:
     assert alice.post("/medications", json=med).status_code == 201
     assert alice.post("/labs", json=HB).status_code == 201
     assert alice.post("/labs", json=OLD_HB).status_code == 201
-    assert alice.post(
-        "/records",
-        json={"record_type": "lab_report", "title": "CBC Nov", "record_date": "2026-11-01",
-              "notes": SECRET_NOTE},
-    ).status_code == 201
+    assert (
+        alice.post(
+            "/records",
+            json={
+                "record_type": "lab_report",
+                "title": "CBC Nov",
+                "record_date": "2026-11-01",
+                "notes": SECRET_NOTE,
+            },
+        ).status_code
+        == 201
+    )
     return {"allergy": allergy}
 
 
@@ -194,9 +207,12 @@ def test_wrong_codes_are_limited_and_logged(alice, app, outbox, settings):
     assert verify(visitor, token, good).status_code == 400
     # A fresh code does.
     visitor.post("/share-access/start", json={"token": token})
-    assert visitor.post(
-        "/share-access/verify", json={"token": token, "code": code_for(outbox)}
-    ).status_code == 200
+    assert (
+        visitor.post(
+            "/share-access/verify", json={"token": token, "code": code_for(outbox)}
+        ).status_code
+        == 200
+    )
 
 
 def test_code_is_single_use_and_new_code_replaces_old(alice, app, outbox):
@@ -256,9 +272,10 @@ def test_revoking_ends_access_immediately_even_for_an_open_session(alice, app, o
     sent_before = len(outbox.outbox)
     assert visitor.post("/share-access/start", json={"token": token}).status_code == 202
     assert len(outbox.outbox) == sent_before
-    assert visitor.post(
-        "/share-access/verify", json={"token": token, "code": "123456"}
-    ).status_code == 400
+    assert (
+        visitor.post("/share-access/verify", json={"token": token, "code": "123456"}).status_code
+        == 400
+    )
     events = [e["event"] for e in alice.get(f"/shares/{share_id}/access").json()["items"]]
     assert "blocked_revoked" in events
     # Revoking twice is harmless.
@@ -332,9 +349,7 @@ def test_verification_attempts_are_rate_limited(settings, outbox):
         visitor = Actor(limited, outbox, "visitor@example.com")
         codes = []
         for _ in range(12):
-            r = visitor.post(
-                "/share-access/verify", json={"token": "t" * 43, "code": "123456"}
-            )
+            r = visitor.post("/share-access/verify", json={"token": "t" * 43, "code": "123456"})
             codes.append(r.status_code)
         assert codes[:10] == [400] * 10 and codes[10:] == [429, 429]
     finally:

@@ -78,9 +78,7 @@ def share_out(grant: ShareGrant) -> ShareOut:
 
 def log_access(db: Session, grant: ShareGrant, event: str, request: Request | None) -> None:
     db.add(
-        ShareAccessLog(
-            grant_id=grant.id, event=event, ip=client_ip(request) if request else None
-        )
+        ShareAccessLog(grant_id=grant.id, event=event, ip=client_ip(request) if request else None)
     )
 
 
