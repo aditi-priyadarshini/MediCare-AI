@@ -117,6 +117,17 @@ Phase 5 controls: consent plus per-chat switches gate every record read; evidenc
 - Voice commands cannot call the API, log doses or change records. Emergency phrases only show a Call 112 link.
 - Text is never read aloud in a voice for a different language.
 
+### Sharing and emergency (Phase 8)
+- Share links carry a random token in the URL fragment; only its hash is stored. Access needs an emailed one-time code
+  (keyed hash, expiry, single use, attempt limit, rate limits per link and per IP) and then a short signed view session.
+- The grant is re-checked on every request: revocation and expiry apply to sessions already open.
+- Unknown, expired and revoked links are indistinguishable to a caller (no probing). Recipient endpoints take no cookie.
+- Every recipient step is logged for the patient; audit rows hold categories and counts, never addresses or content.
+- Known limits: anyone with both the link and the recipient's inbox can open a share; the 15-minute session token is a
+  bearer value held in page memory; rate limiting is still in-process; emails are plain text over the configured relay.
+- Emergency: `/emergency` works without an account; the practice flow cannot be stored as a real dispatch (database
+  check); a dispatch is shown as accepted only with a provider reference; coordinates are never stored or logged.
+
 ## 10. Privacy and regulatory review
 
 This is an academic specification, not legal advice or a compliance certification. Before real deployment, review applicable Indian data protection requirements, health-data obligations, medical-device/software classification, telemedicine rules, pharmacy/medicine regulations, provider contracts and consent requirements with qualified counsel and domain professionals. Determine applicable commencement dates and obligations at launch time.

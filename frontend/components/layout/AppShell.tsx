@@ -1,6 +1,6 @@
 "use client";
 
-import { Apple, FileText, FlaskConical, HeartPulse, Home, LogOut, MapPin, MessageSquare, Pill, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Apple, FileText, FlaskConical, HeartPulse, Home, LogOut, MapPin, MessageSquare, Pill, Share2, ShieldAlert, ShieldCheck, Siren } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/brand";
@@ -19,6 +19,7 @@ const NAV: Array<{ href: string; label: MessageKey; icon: typeof Home }> = [
   { href: "/safety", label: "nav.safety", icon: ShieldAlert },
   { href: "/care", label: "nav.care", icon: MapPin },
   { href: "/diet", label: "nav.diet", icon: Apple },
+  { href: "/share", label: "nav.share", icon: Share2 },
   { href: "/assistant", label: "nav.assistant", icon: MessageSquare },
 ];
 
@@ -70,6 +71,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Logo />
           </div>
           <div className="ml-auto flex items-center gap-2 text-sm sm:gap-3">
+            <Link
+              href="/emergency"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-danger-700 px-3 font-semibold text-white hover:opacity-90"
+            >
+              <Siren className="h-4 w-4" aria-hidden /> <Tr k="nav.emergency" />
+            </Link>
             <DisplayToggles />
             <VoiceCommandBar />
             <span className="hidden text-ink-soft sm:inline">{user?.display_name ?? user?.email}</span>

@@ -14,6 +14,8 @@ export const or: Dictionary = {
   "nav.safety": "ସୁରକ୍ଷା",
   "nav.care": "ଯତ୍ନ ଖୋଜନ୍ତୁ",
   "nav.diet": "ଖାଦ୍ୟ",
+  "nav.share": "ସେୟାର କରନ୍ତୁ",
+  "nav.emergency": "ଜରୁରୀକାଳୀନ",
   "nav.assistant": "ସହାୟକ",
   "nav.main": "ମୁଖ୍ୟ ମେନୁ",
   "nav.skip": "ମୁଖ୍ୟ ବିଷୟବସ୍ତୁକୁ ଯାଆନ୍ତୁ",

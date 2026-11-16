@@ -467,7 +467,7 @@ Implemented in migration `0001_initial_schema`. Differences from / additions to 
   Types: `terms_of_service, privacy_policy, health_data_processing, ai_context`.
 - `audit_logs`: `id, actor_user_id, action, resource_type, resource_id, ip, request_id, metadata(JSONB),
   created_at`. Stores identifiers and event names only, never health content, emails or secrets.
-- Not yet built: `caregiver_grants` (Phase 8), `conditions`/`allergies` reference catalogues.
+- Not yet built: `caregiver_grants`, `conditions`/`allergies` reference catalogues.
 
 ## 5. Phase 4 implementation notes (as built)
 
@@ -483,3 +483,18 @@ Migration `0004_medicine_safety`:
 - `medicine_prices` (source, price, currency, pack quantity and unit, jurisdiction, `observed_at`), all required.
 - `adverse_event_reports` (patient-owned, soft removal, no causality field).
 - The seed in this migration is synthetic demonstration data, not clinically reviewed.
+
+## 6. Phase 8 implementation notes (as built)
+
+Migration `0007_sharing_and_emergency`:
+
+- `share_grants(patient_user_id, recipient_name, recipient_email, token_hash UNIQUE, categories JSONB, date_from, date_to,
+  expires_at, revoked_at, notified_at, last_accessed_at, access_count)`. CHECKs: non-empty array of categories, date order.
+  Only the SHA-256 of the token is stored. Grants are never deleted: revoked and expired rows stay as history.
+- `share_access_challenges(grant_id, code_hash, expires_at, attempt_count, consumed_at)`: keyed hash of the emailed code.
+- `share_access_logs(grant_id, event, ip, created_at)`: append-only; `event` is a CHECK-constrained list
+  (`code_sent, code_failed, verified, viewed, blocked_revoked, blocked_expired`).
+- `emergency_settings(patient_user_id UNIQUE, include_blood_group, include_allergies, include_conditions,
+  include_medications, include_contacts)`: created on first save; absent means the defaults.
+- `emergency_simulations(patient_user_id, mode, status, location_shared, history JSONB)`: CHECK `mode = 'simulated'`
+  and a status list. Coordinates are never stored. A real dispatch has no table yet.

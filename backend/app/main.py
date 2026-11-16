@@ -15,6 +15,7 @@ from app.core.errors import error_body, install_error_handlers
 from app.core.logging import configure_logging, request_id_ctx
 from app.core.ratelimit import InMemoryRateLimiter
 from app.discovery.providers import AppointmentProvider, UnsupportedAppointmentProvider
+from app.emergency.providers import AmbulanceDispatchProvider, UnsupportedAmbulanceProvider
 from app.identity.providers import (
     EmailProvider,
     GoogleOAuthProvider,
@@ -50,6 +51,7 @@ def create_app(
     authenticity: AuthenticityVerifier | None = None,
     llm: LLMProvider | None = None,
     appointments: AppointmentProvider | None = None,
+    ambulance: AmbulanceDispatchProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -87,6 +89,9 @@ def create_app(
 
     # No clinic booking system is integrated: provider-mode requests fail with "call the clinic".
     app.state.appointments = appointments or UnsupportedAppointmentProvider()
+
+    # No ambulance service is integrated: dispatch requests fail with "call 112", nothing is sent.
+    app.state.ambulance = ambulance or UnsupportedAmbulanceProvider()
 
     install_error_handlers(app)
 

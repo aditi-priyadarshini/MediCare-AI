@@ -215,3 +215,30 @@ The server must independently validate patient ownership, consent and context sc
 ```
 
 All example values are illustrative.
+
+## 13. Phase 8 endpoints (as built)
+
+Patient (cookie session + CSRF):
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/shares/preview` | Body `{categories, date_from?, date_to?}`. Returns exactly what a recipient would see. Creates nothing. |
+| POST | `/shares` | Body adds `recipient_name, recipient_email, expires_in_hours (1-720), confirm: true`. 201 `{share, link, notification_sent}`; the link is returned once. 409 `SHARE_LIMIT_REACHED` at 20 active shares. |
+| GET | `/shares` | Own shares with computed `status` (`active | expired | revoked`). |
+| GET | `/shares/{id}/access` | Own share's access log (event and time only). |
+| POST | `/shares/{id}/revoke` | Idempotent. Takes effect on the recipient's next request. |
+| GET / PUT | `/emergency/settings` | What the emergency summary includes. |
+| GET | `/emergency/summary` | Minimum-necessary summary of the patient's own data. Audited (counts only). |
+| GET | `/emergency/status` | `{emergency_number, dispatch_available}`. |
+| POST | `/emergency/simulations` | Needs `confirm: true` and `understand_simulation: true`. 409 `SIMULATION_OPEN` if one is running. |
+| GET | `/emergency/simulations` | Latest 20. Every item has `is_simulation: true` and a notice. |
+| POST | `/emergency/simulations/{id}/advance`, `/cancel` | 409 `SIMULATION_FINISHED` when not open. |
+| POST | `/emergency/dispatch-requests` | Body `{latitude, longitude, confirm: true}`. 503 `AMBULANCE_PROVIDER_UNAVAILABLE` with no provider. 201 only with a provider reference. |
+
+Recipient (no cookie, no CSRF, rate limited):
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/share-access/start` | Body `{token}`. Always 202 with the same message; a code is emailed only for an active link. |
+| POST | `/share-access/verify` | Body `{token, code}`. 200 `{session_token, expires_in_seconds}` or 400 `SHARE_CODE_INVALID` (same for unknown, expired, revoked, wrong or used codes). |
+| GET | `/share-access/summary` | Header `X-Share-Session`. 401 `SHARE_SESSION_INVALID`, 403 `SHARE_NOT_ACTIVE` once revoked or expired. |

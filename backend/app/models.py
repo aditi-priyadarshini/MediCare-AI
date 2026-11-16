@@ -11,6 +11,7 @@ from app.discovery.models import (
     PharmacyInventorySnapshot,
     ProviderSource,
 )
+from app.emergency.models import EmergencySettings, EmergencySimulation
 from app.identity.models import OAuthAccount, OtpChallenge, SessionRecord, User
 from app.medications.models import (
     DoseLog,
@@ -38,6 +39,7 @@ from app.safety.models import (
     ReferenceSource,
     SafetyRule,
 )
+from app.sharing.models import ShareAccessChallenge, ShareAccessLog, ShareGrant
 
 __all__ = [
     "ActiveIngredient",
@@ -55,6 +57,8 @@ __all__ = [
     "DoctorCredential",
     "DoseLog",
     "EmergencyContact",
+    "EmergencySettings",
+    "EmergencySimulation",
     "HealthRecord",
     "LabResult",
     "Medication",
@@ -76,6 +80,9 @@ __all__ = [
     "ReferenceSource",
     "SafetyRule",
     "SessionRecord",
+    "ShareAccessChallenge",
+    "ShareAccessLog",
+    "ShareGrant",
     "User",
     "UserConsent",
 ]

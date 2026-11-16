@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     llm_max_output_tokens: int = 700
     assistant_requests_per_minute: int = 20
 
+    # Sharing (Phase 8): how long a recipient's verified view session lasts. The grant itself is
+    # re-checked on every request, so revoking ends access immediately regardless of this.
+    share_view_ttl_seconds: int = 900
+
     @property
     def allowed_origins(self) -> list[str]:
         return [o.strip().rstrip("/") for o in self.frontend_origins.split(",") if o.strip()]

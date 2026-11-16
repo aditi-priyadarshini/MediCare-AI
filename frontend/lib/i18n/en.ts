@@ -16,6 +16,8 @@ export const en = {
   "nav.safety": "Safety",
   "nav.care": "Find care",
   "nav.diet": "Diet",
+  "nav.share": "Share",
+  "nav.emergency": "Emergency",
   "nav.assistant": "Assistant",
   "nav.main": "Main",
   "nav.skip": "Skip to content",
