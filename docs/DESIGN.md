@@ -1,5 +1,7 @@
 # Design System & UX Specification
 
+> **Redesign in progress:** the colour, shell and accessibility changes planned for the next UI iteration (warm ivory canvas, lavender AI surfaces, Easy-read mode, grouped navigation, `/settings`) are specified in [`UI_REDESIGN/00-MASTER-SPEC.md`](UI_REDESIGN/00-MASTER-SPEC.md). Phase B updates this file's token tables when they are implemented; until then this file describes what is currently built.
+
 **Product:** MediCare AI  
 **Design direction:** Premium clinical SaaS, calm and trustworthy  
 **Reference inspiration:** 21st.dev component patterns and modern shadcn-compatible React interfaces. Use the patterns as inspiration; do not copy a component without checking its source, licence and dependencies.
