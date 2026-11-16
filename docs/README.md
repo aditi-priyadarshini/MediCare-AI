@@ -20,6 +20,7 @@
 | `API.md` | REST API conventions and endpoint inventory |
 | `SECURITY.md` | Privacy, threat model, access controls and safety requirements |
 | `TESTING.md` | Test strategy and release gates |
+| `UI_REDESIGN/` | Phase-wise UI/UX redesign plan (master spec + phases A–G with paste-ready prompts) |
 
 ## Product summary
 
