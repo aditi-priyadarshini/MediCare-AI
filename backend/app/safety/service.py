@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.medications.models import Medication, Medicine
 from app.patients.models import PatientAllergy, PatientCondition
+from app.safety import assessment as asm
 from app.safety import comparison as cmp
 from app.safety import engine as eng
 from app.safety.models import (
     ActiveIngredient,
+    IngredientEffect,
     MedicineIngredient,
     MedicinePrice,
     ReferenceSource,
@@ -77,6 +79,41 @@ def load_rules(db: Session, kind: str | None, ids: set[uuid.UUID]) -> list[eng.R
         )
         for r, s in db.execute(stmt)
     ]
+
+
+def load_effects(db: Session, ids: set[uuid.UUID]) -> list[asm.Effect]:
+    """Active adverse effects for any of the ingredient ids."""
+    if not ids:
+        return []
+    stmt = (
+        select(IngredientEffect, ActiveIngredient, ReferenceSource)
+        .join(ActiveIngredient, ActiveIngredient.id == IngredientEffect.ingredient_id)
+        .join(ReferenceSource, ReferenceSource.id == IngredientEffect.source_id)
+        .where(IngredientEffect.status == "active", IngredientEffect.ingredient_id.in_(ids))
+    )
+    return [
+        asm.Effect(
+            str(e.id),
+            str(e.ingredient_id),
+            i.name,
+            e.effect,
+            e.frequency,
+            e.seriousness,
+            e.when_to_get_help,
+            eng.Source(s.name, e.source_version, e.reviewed_at, e.jurisdiction),
+        )
+        for e, i, s in db.execute(stmt)
+    ]
+
+
+def medicine_ingredient_ids(db: Session, medicine_id: uuid.UUID) -> set[uuid.UUID]:
+    return set(
+        db.scalars(
+            select(MedicineIngredient.ingredient_id).where(
+                MedicineIngredient.medicine_id == medicine_id
+            )
+        )
+    )
 
 
 def ingredient_sets(db: Session, medicine_ids: set[uuid.UUID]) -> dict[uuid.UUID, frozenset]:

@@ -95,7 +95,10 @@ Example error:
 | POST | `/safety/drug-condition/check` | Condition warning check |
 | POST | `/safety/allergy/check` | Allergy warning check |
 | GET | `/safety/medicines/{id}/warnings` | Medicine warnings |
-| GET | `/safety/medicines/{id}/adverse-effects` | Adverse effect reference (not built: no sourced dataset) |
+| POST | `/safety/overview` | Overall status (`needs_attention`, `review`, `no_matching_record`, `insufficient_data`), ranked issues, side effects to watch for. Body `{foods?}`. General food notes only count towards the status when foods are given |
+| POST | `/safety/medicines/{id}/personal-check` | One catalogue medicine against this patient's list, conditions and allergies, plus its adverse effects. Does not add it to their list. Body `{foods?}` |
+| POST | `/safety/explain` | Plain-language explanation of the overview, or of one medicine with `{medicine_id}`. AI only with `ai_context` consent and a configured model; the draft is validated, otherwise a plain summary is returned. `mode`: `ai`, `evidence_only`, `fallback`, `consent_required` |
+| GET/POST | `/admin/adverse-effects`, `/admin/adverse-effects/{id}/retire` | Curate adverse effects (admin). `/safety/medicines/{id}/warnings` now includes `effects`. The seeded effects are demonstration data, not clinically reviewed |
 | POST | `/safety/authenticity/check` | Authenticity check; `unable_to_verify` unless a source is connected |
 | GET | `/medicines/{id}/alternatives` | Candidates with sourced, dated prices |
 | DELETE | `/adverse-events/{id}` | Soft removal (`entered_in_error`) |

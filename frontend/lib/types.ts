@@ -316,6 +316,75 @@ export interface SafetyCheck {
 export type SafetyCheckName = "drug-drug" | "drug-condition" | "drug-food" | "allergy";
 export type SafetyChecks = Record<SafetyCheckName, SafetyCheck>;
 
+/* Personalised assessment: one overall status plus the issues behind it. There is deliberately
+   no "safe" status: the calmest one is "no_matching_record". */
+export type SafetyStatus = "needs_attention" | "review" | "no_matching_record" | "insufficient_data";
+export type IssueSection = "drug_drug" | "drug_condition" | "drug_food" | "allergy" | "duplicate";
+export type EffectFrequency = "very_common" | "common" | "uncommon" | "rare" | "unknown";
+export type EffectSeriousness = "mild" | "moderate" | "serious";
+
+export interface SafetyIssue {
+  section: IssueSection;
+  severity: Severity;
+  title: string;
+  detail: string;
+  guidance: string | null;
+  medication_names: string[];
+  source: SafetySource | null;
+}
+
+export interface AdverseEffect {
+  id: string;
+  ingredient_name: string;
+  effect: string;
+  frequency: EffectFrequency;
+  seriousness: EffectSeriousness;
+  when_to_get_help: string | null;
+  source: SafetySource;
+}
+
+export interface PersonalContext {
+  medications: number;
+  conditions: number;
+  allergies: number;
+  foods: number | null;
+}
+
+export type CheckKey = "drug_drug" | "drug_condition" | "drug_food" | "allergy";
+
+export interface SafetyOverview {
+  status: SafetyStatus;
+  counts: { needs_attention: number; review: number };
+  issues: SafetyIssue[];
+  checks: Record<CheckKey, SafetyCheck>;
+  watch_for: { medication_id: string | null; medication_name: string; effects: AdverseEffect[] }[];
+  context: PersonalContext;
+  notes: string[];
+  disclaimer: string;
+}
+
+export interface PersonalCheck {
+  medicine: { id: string; name: string; form: string | null; strength_text: string | null; ingredients: string[] };
+  already_taking: boolean;
+  status: SafetyStatus;
+  counts: { needs_attention: number; review: number };
+  issues: SafetyIssue[];
+  checks: Record<CheckKey, SafetyCheck>;
+  effects: AdverseEffect[];
+  context: PersonalContext;
+  notes: string[];
+  disclaimer: string;
+}
+
+export type ExplainMode = "ai" | "evidence_only" | "fallback" | "consent_required";
+export interface Explanation {
+  mode: ExplainMode;
+  text: string;
+  evidence: { ref: string; text: string }[];
+  status: SafetyStatus | null;
+  disclaimer: string;
+}
+
 export interface Price {
   source_name: string;
   price: string;

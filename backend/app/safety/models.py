@@ -28,6 +28,8 @@ from app.core.db import Base, TimestampMixin
 
 SEVERITIES = ("unknown", "minor", "moderate", "major", "contraindicated")
 RULE_KINDS = ("drug_drug", "drug_food", "drug_condition")
+EFFECT_FREQUENCIES = ("very_common", "common", "uncommon", "rare", "unknown")
+EFFECT_SERIOUSNESS = ("mild", "moderate", "serious")
 ADR_SEVERITIES = ("mild", "moderate", "severe")
 ADR_OUTCOMES = ("recovered", "ongoing", "unknown")
 
@@ -172,6 +174,54 @@ class SafetyRule(Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     peer_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class IngredientEffect(Base):
+    """A known adverse effect of an active ingredient, with how often it is reported and how
+    serious it can be. Reference data: admin-curated, sourced, retired rather than edited."""
+
+    __tablename__ = "ingredient_effects"
+    __table_args__ = (
+        CheckConstraint(
+            "frequency IN ('very_common','common','uncommon','rare','unknown')",
+            name="frequency_valid",
+        ),
+        CheckConstraint("seriousness IN ('mild','moderate','serious')", name="seriousness_valid"),
+        CheckConstraint("status IN ('active','retired')", name="status_valid"),
+        Index(
+            "uq_ingredient_effects_active",
+            "ingredient_id",
+            "effect",
+            "source_id",
+            "source_version",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+        Index("ix_ingredient_effects_lookup", "status", "ingredient_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    ingredient_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("active_ingredients.id", ondelete="RESTRICT"), nullable=False
+    )
+    effect: Mapped[str] = mapped_column(Text, nullable=False)
+    frequency: Mapped[str] = mapped_column(String(12), nullable=False, default="unknown")
+    seriousness: Mapped[str] = mapped_column(String(10), nullable=False, default="mild")
+    when_to_get_help: Mapped[str | None] = mapped_column(Text)
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("reference_sources.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    reviewed_at: Mapped[date] = mapped_column(Date, nullable=False)
+    jurisdiction: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(8), nullable=False, default="active")
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class MedicinePrice(Base):

@@ -18,6 +18,7 @@ from app.medications.models import Medicine
 from app.safety import engine as eng
 from app.safety.models import (
     ActiveIngredient,
+    IngredientEffect,
     MedicineIngredient,
     MedicinePrice,
     ReferenceSource,
@@ -25,6 +26,8 @@ from app.safety.models import (
 )
 from app.safety.schemas import (
     CompositionIn,
+    EffectAdminOut,
+    EffectIn,
     IngredientIn,
     IngredientOut,
     PriceIn,
@@ -277,6 +280,61 @@ def retire_rule(rule_id: uuid.UUID, request: Request, admin: AdminUser, db: DbDe
     if row.status == "active":
         row.status, row.retired_at = "retired", datetime.now(UTC)
         _audit(db, "admin.rule_retire", request, admin, "safety_rule", row.id)
+        db.commit()
+    return row
+
+
+# --------------------------------------------------------------------------- adverse effects
+@router.get("/adverse-effects", response_model=Page[EffectAdminOut])
+def list_effects(
+    admin: AdminUser,
+    db: DbDep,
+    params: PageDep,
+    ingredient_id: Annotated[uuid.UUID | None, Query()] = None,
+    include_retired: bool = False,
+):
+    base = select(IngredientEffect)
+    if ingredient_id:
+        base = base.where(IngredientEffect.ingredient_id == ingredient_id)
+    if not include_retired:
+        base = base.where(IngredientEffect.status == "active")
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+    rows = db.scalars(
+        base.order_by(IngredientEffect.ingredient_id, IngredientEffect.effect)
+        .limit(params.limit)
+        .offset(params.offset)
+    ).all()
+    return {"items": rows, "total": total, "limit": params.limit, "offset": params.offset}
+
+
+@router.post("/adverse-effects", response_model=EffectAdminOut, status_code=201)
+def create_effect(body: EffectIn, request: Request, admin: AdminUser, db: DbDep):
+    if db.get(ActiveIngredient, body.ingredient_id) is None:
+        raise _missing("ingredient")
+    if db.get(ReferenceSource, body.source_id) is None:
+        raise _missing("source")
+    row = IngredientEffect(created_by_user_id=admin.id, **body.model_dump())
+    db.add(row)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise AppError(
+            409, "ALREADY_EXISTS", "An active entry for that effect, source and version exists."
+        ) from exc
+    _audit(db, "admin.effect_create", request, admin, "ingredient_effect", row.id)
+    db.commit()
+    return row
+
+
+@router.post("/adverse-effects/{effect_id}/retire", response_model=EffectAdminOut)
+def retire_effect(effect_id: uuid.UUID, request: Request, admin: AdminUser, db: DbDep):
+    row = db.get(IngredientEffect, effect_id)
+    if row is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "The requested resource was not found.")
+    if row.status == "active":
+        row.status, row.retired_at = "retired", datetime.now(UTC)
+        _audit(db, "admin.effect_retire", request, admin, "ingredient_effect", row.id)
         db.commit()
     return row
 

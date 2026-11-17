@@ -132,8 +132,12 @@ def _stem(word: str) -> str:
     return word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss") else word
 
 
+# Words people commonly write that mean the same as a curated rule term.
+_SYNONYMS = {"pregnant": "pregnancy"}
+
+
 def _words(text: str) -> str:
-    return " ".join(_stem(w) for w in normalize(text).split())
+    return " ".join(_SYNONYMS.get(w, _stem(w)) for w in normalize(text).split())
 
 
 def contains_term(text: str, term: str) -> bool:
@@ -338,6 +342,11 @@ def check_allergies(
         )
     _finish_notes(result)
     return result
+
+
+def finish_notes(result: CheckResult) -> None:
+    """Add the standard closing notes for a result's outcome (public for the assessment code)."""
+    _finish_notes(result)
 
 
 def _finish_notes(result: CheckResult) -> None:

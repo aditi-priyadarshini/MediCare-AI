@@ -10,6 +10,11 @@ RuleKind = Literal["drug_drug", "drug_food", "drug_condition"]
 Outcome = Literal["findings", "no_matching_record", "insufficient_data"]
 AdrSeverity = Literal["mild", "moderate", "severe"]
 AdrOutcome = Literal["recovered", "ongoing", "unknown"]
+Status = Literal["needs_attention", "review", "no_matching_record", "insufficient_data"]
+Section = Literal["drug_drug", "drug_condition", "drug_food", "allergy", "duplicate"]
+EffectFrequency = Literal["very_common", "common", "uncommon", "rare", "unknown"]
+EffectSeriousness = Literal["mild", "moderate", "serious"]
+ExplainMode = Literal["ai", "evidence_only", "fallback", "consent_required"]
 
 SAFETY_DISCLAIMER = (
     "This is a limited reference dataset, not medical advice. Finding nothing here does not "
@@ -111,12 +116,126 @@ class FoodCheckIn(CheckIn):
         return cleaned
 
 
+class EffectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    ingredient_name: str
+    effect: str
+    frequency: EffectFrequency
+    seriousness: EffectSeriousness
+    when_to_get_help: str | None
+    source: SourceOut
+
+
 class WarningsOut(BaseModel):
     medicine_id: uuid.UUID
     medicine_name: str
     ingredients: list[str]
     rules: list[FindingOut]
+    effects: list[EffectOut] = []
     notes: list[str]
+    disclaimer: str = SAFETY_DISCLAIMER
+
+
+# --------------------------------------------------------------- personalised assessment
+class IssueOut(BaseModel):
+    """One thing worth attention, flattened from any check and ordered most serious first."""
+
+    model_config = ConfigDict(from_attributes=True)
+    section: Section
+    severity: Severity
+    title: str
+    detail: str
+    guidance: str | None
+    medication_names: list[str]
+    source: SourceOut | None
+
+
+class IssueCounts(BaseModel):
+    needs_attention: int
+    review: int
+
+
+class PersonalContextOut(BaseModel):
+    """How much of the patient's own data a result was based on (counts only)."""
+
+    medications: int
+    conditions: int
+    allergies: int
+    foods: int | None = None
+
+
+class MedicineEffectsOut(BaseModel):
+    medication_id: str | None
+    medication_name: str
+    effects: list[EffectOut]
+
+
+class OverviewOut(BaseModel):
+    status: Status
+    counts: IssueCounts
+    issues: list[IssueOut]
+    checks: dict[str, CheckOut]
+    watch_for: list[MedicineEffectsOut]
+    context: PersonalContextOut
+    notes: list[str]
+    disclaimer: str = SAFETY_DISCLAIMER
+
+
+class MedicineBrief(BaseModel):
+    id: uuid.UUID
+    name: str
+    form: str | None
+    strength_text: str | None
+    ingredients: list[str]
+
+
+class PersonalCheckIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    foods: list[str] | None = Field(default=None, max_length=20)
+
+    @field_validator("foods")
+    @classmethod
+    def _foods(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        cleaned = [c for c in (_clean(x) for x in v) if c]
+        if any(len(c) > 60 for c in cleaned):
+            raise ValueError("Each food must be 60 characters or fewer.")
+        return cleaned
+
+
+class PersonalCheckOut(BaseModel):
+    medicine: MedicineBrief
+    already_taking: bool
+    status: Status
+    counts: IssueCounts
+    issues: list[IssueOut]
+    checks: dict[str, CheckOut]
+    effects: list[EffectOut]
+    context: PersonalContextOut
+    notes: list[str]
+    disclaimer: str = SAFETY_DISCLAIMER
+
+
+# ------------------------------------------------------------------------------ explain
+class ExplainIn(PersonalCheckIn):
+    """Explain either one medicine the patient looked up, or their whole medicine list."""
+
+    medicine_id: uuid.UUID | None = None
+    language: Literal["en", "hi", "or"] = "en"
+
+
+class ExplainEvidence(BaseModel):
+    ref: str
+    text: str
+
+
+class ExplainOut(BaseModel):
+    mode: ExplainMode
+    text: str
+    evidence: list[ExplainEvidence]
+    status: Status | None = None
     disclaimer: str = SAFETY_DISCLAIMER
 
 
@@ -360,6 +479,39 @@ class RuleOut(BaseModel):
     reviewed_by_user_id: uuid.UUID | None = None
     peer_reviewed_at: datetime | None = None
     created_by_user_id: uuid.UUID | None = None
+
+
+class EffectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ingredient_id: uuid.UUID
+    effect: str = Field(min_length=3, max_length=200)
+    frequency: EffectFrequency = "unknown"
+    seriousness: EffectSeriousness = "mild"
+    when_to_get_help: str | None = Field(default=None, max_length=500)
+    source_id: uuid.UUID
+    source_version: str = Field(min_length=1, max_length=32)
+    reviewed_at: date
+    jurisdiction: str = Field(min_length=2, max_length=16)
+
+    _c = field_validator("effect", "when_to_get_help", "jurisdiction")(_clean)
+    _d = field_validator("reviewed_at")(_not_future)
+
+
+class EffectAdminOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    ingredient_id: uuid.UUID
+    effect: str
+    frequency: EffectFrequency
+    seriousness: EffectSeriousness
+    when_to_get_help: str | None
+    source_id: uuid.UUID
+    source_version: str
+    reviewed_at: date
+    jurisdiction: str
+    status: Literal["active", "retired"]
+    retired_at: datetime | None
+    created_at: datetime
 
 
 class PriceIn(BaseModel):

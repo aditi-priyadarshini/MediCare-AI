@@ -1,141 +1,147 @@
 "use client";
 
-import { useState } from "react";
-import { Alert, Button, Card, TextField } from "@/components/ui/primitives";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Button, Card, EmptyState, Skeleton, TextField } from "@/components/ui/primitives";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { api, errorMessage } from "@/lib/api-client";
-import {
-  BASIS_TEXT,
-  bySeverity,
-  CHECKS,
-  outcomeText,
-  parseList,
-  SEVERITY_LABEL,
-  sourceLine,
-} from "@/lib/safety";
-import type { SafetyCheck, SafetyCheckName, SafetyChecks, SafetyFinding } from "@/lib/types";
+import { CHECKS, parseList } from "@/lib/safety";
+import type { CheckKey, SafetyOverview } from "@/lib/types";
+import { CheckResult } from "./CheckResults";
+import { EffectsPanel, ExplainPanel, IssueList, StatusBanner } from "./parts";
 
-function Finding({ f }: { f: SafetyFinding }) {
-  return (
-    <li className="rounded-lg border border-line p-3 text-sm">
-      <p className="font-semibold text-ink">
-        {SEVERITY_LABEL[f.severity]}
-        <span className="font-normal text-ink-soft">
-          {" "}
-          · {f.medication_names.join(" + ")}
-          {f.matched_term ? ` · ${f.matched_term}` : ""}
-        </span>
-      </p>
-      <p className="mt-1 text-ink">{f.description}</p>
-      {f.clinical_significance && <p className="mt-1 text-ink-soft">{f.clinical_significance}</p>}
-      {f.guidance && <p className="mt-1 text-ink">{f.guidance}</p>}
-      {f.conflict && (
-        <p className="mt-1 font-medium text-amber-600">
-          Sources disagree about how serious this is. Both are shown.
-        </p>
-      )}
-      <p className="mt-2 text-xs text-ink-soft">Source: {sourceLine(f.source)}</p>
-    </li>
-  );
-}
+const keyOf = (name: string) => name.replace("-", "_") as CheckKey;
 
-function Result({ title, blurb, check }: { title: string; blurb: string; check: SafetyCheck }) {
-  const count = check.findings.length + check.allergy_findings.length;
-  const o = outcomeText(check.outcome, count);
-  return (
-    <div className="space-y-2">
-      <h3 className="font-semibold text-ink">{title}</h3>
-      <p className="text-sm text-ink-soft">{blurb}</p>
-      <Alert tone={o.tone} title={o.title}>
-        {o.body}
-      </Alert>
-      {check.findings.length > 0 && (
-        <ul className="space-y-2">
-          {bySeverity(check.findings).map((f) => (
-            <Finding key={`${f.rule_id}-${f.medication_ids.join("-")}`} f={f} />
-          ))}
-        </ul>
-      )}
-      {check.allergy_findings.length > 0 && (
-        <ul className="space-y-2">
-          {check.allergy_findings.map((a) => (
-            <li key={`${a.allergy_id}-${a.medication_id}-${a.ingredient_name}`} className="rounded-lg border border-line p-3 text-sm">
-              <p className="font-semibold text-ink">Possible match: {a.medication_name}</p>
-              <p className="mt-1 text-ink">
-                Your allergy “{a.allergy_text}”
-                {a.allergy_severity ? ` (${a.allergy_severity})` : ""} {BASIS_TEXT[a.basis]} {a.ingredient_name}.
-              </p>
-              <p className="mt-2 text-xs text-ink-soft">Source: {sourceLine(a.source)}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-      {check.duplicates.length > 0 && (
-        <Alert tone="warning" title="Same ingredient more than once">
-          {check.duplicates.map((d) => `${d.ingredient_name}: ${d.medication_names.join(", ")}`).join(". ")}.
-        </Alert>
-      )}
-      {check.notes.map((n) => (
-        <p key={n} className="text-sm text-ink-soft">
-          {n}
-        </p>
-      ))}
-    </div>
-  );
-}
-
+/**
+ * "My medicines": one overall status for everything the patient takes, the issues behind it
+ * (most serious first), what to watch for with each medicine, and the detailed checks.
+ * It runs when the page opens, so the status is the first thing seen.
+ */
 export function CheckCard() {
   const [foods, setFoods] = useState("");
-  const [results, setResults] = useState<SafetyChecks | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [typed, setTyped] = useState<string[]>([]);
+  const [data, setData] = useState<SafetyOverview | null>(null);
+  const [busy, setBusy] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
+  const seq = useRef(0);
 
-  async function run() {
+  const run = useCallback(async (list: string[]) => {
+    const n = ++seq.current;
     setBusy(true);
     setFailure(null);
-    const list = parseList(foods);
     try {
-      const entries = await Promise.all(
-        CHECKS.map(async (c) => {
-          const body = c.name === "drug-food" && list.length ? { foods: list } : {};
-          return [c.name, await api<SafetyCheck>(`/safety/${c.name}/check`, { method: "POST", body })] as const;
-        }),
-      );
-      setResults(Object.fromEntries(entries) as Record<SafetyCheckName, SafetyCheck>);
+      const result = await api<SafetyOverview>("/safety/overview", {
+        method: "POST",
+        body: list.length ? { foods: list } : {},
+      });
+      if (n !== seq.current) return;
+      setData(result);
+      setTyped(list);
     } catch (e) {
-      setFailure(errorMessage(e));
+      if (n === seq.current) setFailure(errorMessage(e));
     } finally {
-      setBusy(false);
+      if (n === seq.current) setBusy(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void run([]);
+  }, [run]);
 
   return (
     <Card aria-labelledby="check-h" className="space-y-4">
-      <div>
-        <h2 id="check-h" className="text-lg font-semibold text-ink">
-          Check my medicines
-        </h2>
-        <p className="mt-1 text-sm text-ink-soft">
-          Looks at the medicines you are taking now, your conditions and your allergies, using a limited reference
-          dataset. It cannot tell you that something is safe.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="check-h" className="text-lg font-semibold text-ink">
+            My medicines
+          </h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            Checks what you take now against each other, your health conditions and your allergies, using a
+            limited reference dataset. It cannot tell you that something is safe.
+          </p>
+        </div>
+        <Button variant="secondary" onClick={() => run(typed)} loading={busy && data !== null}>
+          Check again
+        </Button>
       </div>
-      <TextField
-        label="Foods or drinks to check (optional)"
-        hint="Separate with commas, for example: grapefruit, milk. Leave blank to see all food notes."
-        value={foods}
-        onChange={(e) => setFoods(e.target.value)}
-        maxLength={400}
-      />
-      <Button onClick={run} loading={busy}>
-        Run checks
-      </Button>
-      {failure && <Alert tone="danger" title="The check did not run">{failure}</Alert>}
-      {results && (
-        <div className="space-y-6" aria-live="polite">
-          {CHECKS.map((c) => (
-            <Result key={c.name} title={c.title} blurb={c.blurb} check={results[c.name]} />
-          ))}
-          <p className="text-sm text-ink-soft">{results["drug-drug"].disclaimer}</p>
+
+      {failure && (
+        <Alert tone="danger" title="The check did not run">
+          {failure}
+        </Alert>
+      )}
+      {busy && !data && !failure && (
+        <div aria-busy="true" aria-label="Checking your medicines" className="space-y-2">
+          <Skeleton variant="row" />
+          <Skeleton variant="row" />
+        </div>
+      )}
+
+      {data && data.context.medications === 0 && (
+        <EmptyState
+          title="No medicines on your list yet"
+          action={<LinkButton href="/medications">Add a medicine</LinkButton>}
+        >
+          Add what you take and this page will check it for you. You can also look up any medicine above.
+        </EmptyState>
+      )}
+
+      {data && data.context.medications > 0 && (
+        <div className="space-y-5">
+          <StatusBanner status={data.status} counts={data.counts} context={data.context} />
+          <IssueList issues={data.issues} heading="What needs your attention" />
+          {data.notes.length > 0 && (
+            <ul className="space-y-1 text-sm text-ink-soft">
+              {data.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
+
+          <div className="space-y-2">
+            <TextField
+              label="Foods or drinks to check (optional)"
+              hint="Separate with commas, for example: grapefruit, alcohol. Leave blank to see the general food notes."
+              value={foods}
+              onChange={(e) => setFoods(e.target.value)}
+              maxLength={400}
+            />
+            <Button variant="secondary" onClick={() => run(parseList(foods))} loading={busy}>
+              Check these foods
+            </Button>
+          </div>
+
+          {data.watch_for.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-semibold text-ink">What to watch for</h3>
+              <p className="text-sm text-ink-soft">
+                Side effects reported for the medicines you take. Most people have none or only mild ones.
+              </p>
+              {data.watch_for.map((w) => (
+                <details key={w.medication_id ?? w.medication_name} className="rounded-lg border border-line px-3">
+                  <summary className="min-h-[44px] cursor-pointer py-3 text-sm font-semibold text-ink">
+                    {w.medication_name}
+                  </summary>
+                  <div className="pb-3">
+                    <EffectsPanel effects={w.effects} />
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+
+          <ExplainPanel foods={typed} />
+
+          <details className="rounded-lg border border-line px-3">
+            <summary className="min-h-[44px] cursor-pointer py-3 text-sm font-semibold text-ink">
+              All four checks in detail
+            </summary>
+            <div className="space-y-6 pb-3">
+              {CHECKS.map((c) => (
+                <CheckResult key={c.name} title={c.title} blurb={c.blurb} check={data.checks[keyOf(c.name)]} />
+              ))}
+            </div>
+          </details>
+          <p className="text-sm text-ink-soft">{data.disclaimer}</p>
         </div>
       )}
     </Card>

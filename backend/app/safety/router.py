@@ -14,6 +14,7 @@ from app.core.pagination import Page, PageDep
 from app.medications import service as med_svc
 from app.medications.models import Medicine
 from app.records.service import owned_record_or_404
+from app.safety import assessment as asm
 from app.safety import authenticity as auth
 from app.safety import comparison as cmp
 from app.safety import engine as eng
@@ -28,6 +29,7 @@ from app.safety.schemas import (
     CandidateOut,
     CheckIn,
     CheckOut,
+    EffectOut,
     FindingOut,
     FoodCheckIn,
     IngredientBrief,
@@ -153,6 +155,7 @@ def medicine_warnings(medicine_id: uuid.UUID, user: CurrentUser, db: DbDep):
         medicine_name=medicine.name,
         ingredients=sorted(names[str(i)].name for i in own if str(i) in names),
         rules=[FindingOut.model_validate(f) for f in out],
+        effects=[EffectOut.model_validate(e) for e in asm.sort_effects(svc.load_effects(db, own))],
         notes=notes,
     )
 
