@@ -1,119 +1,130 @@
 "use client";
 
-import { Send, Trash2 } from "lucide-react";
-import { Fragment, useEffect, useRef, useState } from "react";
-import { ContextControls } from "@/components/assistant/ContextControls";
-import { EvidenceList } from "@/components/assistant/EvidenceList";
+import Link from "next/link";
+import { MessagesSquare, ShieldAlert, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Composer } from "@/components/assistant/Composer";
+import { ContextPanel } from "@/components/assistant/ContextControls";
+import { MessageList } from "@/components/assistant/MessageList";
+import { SessionList } from "@/components/assistant/SessionList";
+import { ConfirmationDialog, Dialog } from "@/components/ui/Dialog";
+import { Drawer } from "@/components/ui/Drawer";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Alert, Button, Card, EmptyState, PageLoading } from "@/components/ui/primitives";
-import { ReadAloudButton } from "@/components/voice/ReadAloudButton";
-import { VoiceInputButton } from "@/components/voice/VoiceInputButton";
 import { api, errorMessage } from "@/lib/api-client";
-import { MODE_NOTE, splitCitations } from "@/lib/assistant";
-import { useAsync } from "@/lib/hooks";
+import { assistantErrorKey } from "@/lib/assistant";
+import { cn } from "@/lib/cn";
+import { useExperience } from "@/lib/experience";
+import { useAsync, useMediaQuery } from "@/lib/hooks";
 import { Tr, useT } from "@/lib/i18n";
 import { useOptionalProfile } from "@/lib/profile-context";
-import { scriptLanguage, speakableAnswer } from "@/lib/speech";
 import type {
   AskResult,
   AssistantStatus,
-  ChatMessage,
   ChatSessionBrief,
   ChatSessionDetail,
   ContextKey,
+  Language,
 } from "@/lib/types";
 
 interface Page<T> {
   items: T[];
 }
 
-function AnswerText({ message }: { message: ChatMessage }) {
-  // Always plain text: model output is never interpreted as HTML or markdown.
-  return (
-    <p className="whitespace-pre-wrap text-ink">
-      {splitCitations(message.content).map((s, i) =>
-        s.kind === "text" ? (
-          <Fragment key={i}>{s.text}</Fragment>
-        ) : (
-          <a
-            key={i}
-            href={`#ev-${message.id}-${s.ref}`}
-            className="mx-0.5 rounded bg-mint-100 px-1 text-xs font-semibold text-teal-700"
-            aria-label={`Source ${s.ref}`}
-          >
-            {s.ref}
-          </a>
-        ),
-      )}
-    </p>
-  );
-}
+type Busy = "create" | "open" | "send" | "context" | "delete";
 
-function Bubble({ message }: { message: ChatMessage }) {
-  const mine = message.role === "user";
-  const voice = useOptionalProfile()?.profile.accessibility_preferences.voice_enabled ?? false;
-  const spoken = speakableAnswer(message.content);
+/** Always on screen, in the page itself (never in a tooltip), on every viewport. */
+function SafetyNotice() {
   return (
-    <div className={mine ? "ml-auto max-w-[85%]" : "mr-auto max-w-[95%]"}>
-      <div className={mine ? "rounded-lg bg-teal-700 p-3 text-white" : "rounded-lg border border-line bg-surface p-3"}>
-        {mine ? <p className="whitespace-pre-wrap">{message.content}</p> : <AnswerText message={message} />}
+    <div role="note" className="flex gap-3 rounded-lg border border-line bg-mint-100 p-3 text-sm text-ink">
+      <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden />
+      <div>
+        <p>
+          <Tr k="assistant.notAdvice" /> <Tr k="assistant.emergency" />
+        </p>
+        <Link href="/emergency" className="inline-flex min-h-[44px] items-center font-medium underline">
+          <Tr k="assistant.safety.urgent.page" />
+        </Link>
       </div>
-      {!mine && message.mode && <p className="mt-1 text-xs text-ink-soft">{MODE_NOTE[message.mode]}</p>}
-      {!mine && voice && <ReadAloudButton text={spoken} language={scriptLanguage(spoken)} />}
-      {!mine && <EvidenceList messageId={message.id} items={message.evidence} />}
     </div>
   );
 }
 
 export function AssistantView() {
   const { t } = useT();
+  const { experience } = useExperience();
+  const easy = experience === "easy";
   const profile = useOptionalProfile()?.profile;
-  const language = profile?.preferred_language ?? "en";
+  const language = (profile?.preferred_language ?? "en") as Language;
+  const timeZone = profile?.timezone ?? null;
   const voiceOn = profile?.accessibility_preferences.voice_enabled ?? false;
+  const isLg = useMediaQuery("(min-width: 1024px)");
+  const isXl = useMediaQuery("(min-width: 1280px)");
+
   const status = useAsync(() => api<AssistantStatus>("/assistant/status"), []);
   const sessions = useAsync(() => api<Page<ChatSessionBrief>>("/assistant/sessions?limit=50"), []);
+
   const [detail, setDetail] = useState<ChatSessionDetail | null>(null);
   const [question, setQuestion] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Busy | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const [again, setAgain] = useState<(() => void) | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [chatsOpen, setChatsOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView?.({ block: "end" });
-  }, [detail?.messages.length]);
-
-  async function guard<T>(fn: () => Promise<T>): Promise<T | undefined> {
-    setBusy(true);
+  /** Runs one action: marks what is in flight, shows a plain-language error, offers a retry. */
+  async function guard<T>(kind: Busy, fn: () => Promise<T>, retryWith?: () => void): Promise<T | undefined> {
+    setBusy(kind);
     setFailure(null);
+    setAgain(null);
     try {
       return await fn();
     } catch (e) {
-      setFailure(errorMessage(e));
+      const key = assistantErrorKey(e);
+      setFailure(key ? t(key) : errorMessage(e));
+      if (retryWith) setAgain(() => retryWith);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
+    return undefined;
   }
 
   const open = (id: string) =>
-    guard(async () => setDetail(await api<ChatSessionDetail>(`/assistant/sessions/${id}`)));
+    guard(
+      "open",
+      async () => setDetail(await api<ChatSessionDetail>(`/assistant/sessions/${id}`)),
+      () => void open(id),
+    );
 
   const create = () =>
-    guard(async () => {
-      setDetail(await api<ChatSessionDetail>("/assistant/sessions", { method: "POST", body: { language } }));
-      await sessions.reload();
-    });
+    guard(
+      "create",
+      async () => {
+        setDetail(await api<ChatSessionDetail>("/assistant/sessions", { method: "POST", body: { language } }));
+        await sessions.reload();
+      },
+      () => void create(),
+    );
 
-  const remove = () =>
-    detail &&
-    window.confirm("Delete this chat and its saved answers? This cannot be undone.") &&
-    guard(async () => {
-      await api(`/assistant/sessions/${detail.id}`, { method: "DELETE" });
+  async function confirmDelete() {
+    if (!detail) return;
+    const id = detail.id;
+    await guard("delete", async () => {
+      await api(`/assistant/sessions/${id}`, { method: "DELETE" });
       setDetail(null);
+      setQuestion("");
       await sessions.reload();
     });
+    setDeleteOpen(false);
+  }
 
-  const toggle = (key: ContextKey, value: boolean) =>
-    detail &&
-    guard(async () =>
+  /** The chat's switches only change after the API accepted the change; nothing is guessed here. */
+  const toggle = (key: ContextKey, value: boolean) => {
+    if (!detail) return;
+    void guard("context", async () =>
       setDetail(
         await api<ChatSessionDetail>(`/assistant/sessions/${detail.id}/context`, {
           method: "PATCH",
@@ -121,108 +132,210 @@ export function AssistantView() {
         }),
       ),
     );
+  };
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
+  async function send() {
     const text = question.trim();
-    if (!detail || !text) return;
-    const result = await guard(() =>
-      api<AskResult>(`/assistant/sessions/${detail.id}/messages`, { method: "POST", body: { content: text } }),
+    if (!detail || !text || busy) return;
+    const id = detail.id;
+    setPending(text);
+    const result = await guard(
+      "send",
+      () => api<AskResult>(`/assistant/sessions/${id}/messages`, { method: "POST", body: { content: text } }),
+      () => void send(),
     );
+    setPending(null);
     if (result) {
       setQuestion("");
-      setDetail((d) =>
-        d ? { ...d, messages: [...d.messages, result.user_message, result.assistant_message] } : d,
-      );
+      setDetail((d) => (d && d.id === id ? { ...d, messages: [...d.messages, result.user_message, result.assistant_message] } : d));
       void sessions.reload();
     }
   }
 
-  if (status.loading || sessions.loading) return <PageLoading label="Loading assistant" />;
+  if (sessions.loading && !sessions.data) return <PageLoading label={t("assistant.loading")} />;
+  if (sessions.error && !sessions.data) {
+    return (
+      <ErrorState title={t("assistant.load.error")} onRetry={() => void sessions.reload()} retryLabel={t("assistant.retry")}>
+        {errorMessage(sessions.error)}
+      </ErrorState>
+    );
+  }
+
+  const list = sessions.data?.items ?? [];
   const consent = detail?.consent_granted ?? status.data?.consent_granted ?? false;
+  const showPanel = isXl && panelOpen && detail !== null;
+  const controls = detail && {
+    context: detail.context,
+    consentGranted: consent,
+    busy: busy === "context",
+    locked: busy !== null,
+    onChange: toggle,
+    easy,
+  };
+  const chats = (
+    <SessionList
+      sessions={list}
+      activeId={detail?.id ?? null}
+      busy={busy !== null}
+      creating={busy === "create"}
+      onOpen={(id) => {
+        setChatsOpen(false);
+        void open(id);
+      }}
+      onNew={() => {
+        setChatsOpen(false);
+        void create();
+      }}
+    />
+  );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-      <aside aria-label="Your chats" className="space-y-3">
-        <Button onClick={create} loading={busy && !detail} fullWidth>
-          {t("assistant.newChat")}
-        </Button>
-        <ul className="space-y-1">
-          {(sessions.data?.items ?? []).map((s) => (
-            <li key={s.id}>
-              <button
-                type="button"
-                onClick={() => void open(s.id)}
-                aria-current={detail?.id === s.id ? "true" : undefined}
-                className="min-h-[44px] w-full truncate rounded-lg px-3 text-left text-sm hover:bg-mint-100 aria-[current=true]:bg-mint-100"
-              >
-                {s.title}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </aside>
+    <div
+      className={cn(
+        "grid gap-4",
+        isLg && !showPanel && "grid-cols-[15rem_minmax(0,1fr)]",
+        isLg && showPanel && "grid-cols-[15rem_minmax(0,1fr)_20rem]",
+      )}
+    >
+      {isLg && <aside aria-label={t("assistant.chats")}>{chats}</aside>}
 
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         {status.data?.mode === "evidence_only" && (
-          <Alert tone="info" title="No AI model is connected">
-            The assistant lists matching records and reference notes exactly as recorded.
+          <Alert tone="info" title={t("assistant.status.none.title")}>
+            {t("assistant.status.none.body")}
           </Alert>
         )}
-        {failure && <Alert tone="danger" title="Something went wrong">{failure}</Alert>}
-        {!detail ? (
-          <EmptyState title="Start a chat">
-            Ask about your recorded tests, medicines or allergies. Nothing is shared with the assistant until you switch it on.
-          </EmptyState>
-        ) : (
-          <>
-            <ContextControls context={detail.context} consentGranted={consent} busy={busy} onChange={toggle} />
-            <Card aria-label="Conversation" className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="truncate text-lg font-semibold text-ink">{detail.title}</h2>
-                <Button variant="ghost" onClick={remove} aria-label="Delete this chat">
-                  <Trash2 className="h-4 w-4" aria-hidden /> Delete
-                </Button>
-              </div>
-              <div className="space-y-4" aria-live="polite">
-                {detail.messages.length === 0 && (
-                  <EmptyState title="No messages yet">For example: “How has my HbA1c changed?”</EmptyState>
-                )}
-                {detail.messages.map((m) => (
-                  <Bubble key={m.id} message={m} />
-                ))}
-                <div ref={endRef} />
-              </div>
-              <form onSubmit={send} className="flex gap-2">
-                <label htmlFor="ask" className="sr-only">
-                  {t("assistant.ask.label")}
-                </label>
-                <textarea
-                  id="ask"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  maxLength={2000}
-                  rows={2}
-                  placeholder={t("assistant.ask.placeholder")}
-                  className="min-h-[44px] flex-1 rounded-lg border border-line p-2"
-                />
-                <Button type="submit" loading={busy} disabled={!question.trim()}>
-                  <Send className="h-4 w-4" aria-hidden /> {t("assistant.send")}
-                </Button>
-              </form>
-              {voiceOn && (
-                <VoiceInputButton
-                  language={language}
-                  onText={(text) => setQuestion((q) => `${q ? `${q} ` : ""}${text}`.slice(0, 2000))}
-                />
-              )}
-            </Card>
-          </>
+        {status.error && !status.data && (
+          <Alert tone="warning" title={t("assistant.status.error")} />
         )}
-        <p className="text-xs text-ink-soft">
-          <Tr k="assistant.notAdvice" /> <Tr k="assistant.emergency" />
-        </p>
+        {failure && (
+          <Alert tone="danger" title={t("assistant.failure.title")}>
+            <p>{failure}</p>
+            {again && (
+              <Button variant="secondary" className="mt-2" onClick={again}>
+                {t("assistant.retry")}
+              </Button>
+            )}
+          </Alert>
+        )}
+
+        {!detail ? (
+          <>
+            <EmptyState
+              title={t("assistant.empty.title")}
+              action={
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button onClick={() => void create()} loading={busy === "create"} disabled={busy !== null}>
+                    {t("assistant.newChat")}
+                  </Button>
+                  {!isLg && list.length > 0 && (
+                    <Button variant="secondary" onClick={() => setChatsOpen(true)}>
+                      <MessagesSquare className="h-4 w-4" aria-hidden /> {t("assistant.chats.open")}
+                    </Button>
+                  )}
+                </div>
+              }
+            >
+              {t("assistant.empty.body")}
+            </EmptyState>
+            <SafetyNotice />
+          </>
+        ) : (
+          <Card aria-label={detail.title} className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="min-w-0 truncate text-h3 text-ink">{detail.title}</h2>
+              <div className="flex flex-wrap gap-1">
+                {!isLg && (
+                  <Button variant="ghost" onClick={() => setChatsOpen(true)}>
+                    <MessagesSquare className="h-4 w-4" aria-hidden /> {t("assistant.chats.open")}
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  aria-expanded={isXl ? panelOpen : undefined}
+                  onClick={() => (isXl ? setPanelOpen((o) => !o) : setSheetOpen(true))}
+                >
+                  <SlidersHorizontal className="h-4 w-4" aria-hidden />{" "}
+                  {isXl ? (panelOpen ? t("assistant.panel.hide") : t("assistant.panel.show")) : t("assistant.panel.open")}
+                </Button>
+                <Button variant="ghost" onClick={() => setDeleteOpen(true)} aria-label={t("assistant.delete.aria")} disabled={busy !== null}>
+                  <Trash2 className="h-4 w-4" aria-hidden /> {t("assistant.delete")}
+                </Button>
+              </div>
+            </div>
+
+            {detail.messages.length === 0 && !pending && (
+              <EmptyState title={t("assistant.noMessages.title")}>{t("assistant.noMessages.body")}</EmptyState>
+            )}
+            <MessageList
+              key={detail.id}
+              messages={detail.messages}
+              pending={pending}
+              language={language}
+              timeZone={timeZone}
+              voiceOn={voiceOn}
+              easy={easy}
+            />
+            <SafetyNotice />
+            <Composer
+              value={question}
+              onChange={setQuestion}
+              onSend={() => void send()}
+              busy={busy !== null}
+              sending={busy === "send"}
+              context={detail.context}
+              language={language}
+              voiceOn={voiceOn}
+              showPrompts={detail.messages.length === 0 && !pending}
+              easy={easy}
+            />
+          </Card>
+        )}
       </div>
+
+      {showPanel && controls && (
+        <aside aria-label={t("assistant.panel.open")}>
+          <ContextPanel {...controls} />
+        </aside>
+      )}
+
+      {/* Phones and tablets: the switches open as a sheet from the bottom edge. */}
+      <Dialog
+        open={sheetOpen && !isXl && controls !== null}
+        onClose={() => setSheetOpen(false)}
+        title={t("assistant.panel.open")}
+        className="max-h-[85vh] overflow-y-auto"
+      >
+        {controls && <ContextPanel {...controls} />}
+        <div className="mt-4 flex justify-end">
+          <Button variant="secondary" onClick={() => setSheetOpen(false)}>
+            {t("assistant.panel.close")}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Drawer
+        open={chatsOpen && !isLg}
+        onClose={() => setChatsOpen(false)}
+        title={t("assistant.chats")}
+        closeLabel={t("assistant.panel.close")}
+        side="left"
+      >
+        {chats}
+      </Drawer>
+
+      <ConfirmationDialog
+        open={deleteOpen}
+        destructive
+        loading={busy === "delete"}
+        title={t("assistant.delete.title")}
+        confirmLabel={t("assistant.delete.confirm")}
+        cancelLabel={t("assistant.cancel")}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteOpen(false)}
+      >
+        {t("assistant.delete.body")}
+      </ConfirmationDialog>
     </div>
   );
 }

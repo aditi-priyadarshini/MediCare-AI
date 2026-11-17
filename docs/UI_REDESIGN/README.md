@@ -39,7 +39,7 @@ After Phase C, phases D1, D2, E1, E2 and F do not depend on each other and can b
 | C | ✔ Done (see handoff in PHASE-C file) | `ui/c-app-shell` | | 217 tests pass, build green; no live browser check yet |
 | D1 | ✔ Done (see handoff in PHASE-D1 file) | `ui/d1-dashboard-onboarding` | | 280 tests pass, build green; no live browser check yet |
 | D2 | ◐ Code written; **lint, typecheck, tests and build NOT run** (no node_modules/network in the authoring sandbox) | `ui/d2-health-data` | | See handoff in PHASE-D2 file |
-| E1 | ☐ Not started | `ui/e1-assistant` | | |
+| E1 | ◐ Code and tests written; **vitest, lint, `next build` NOT run** (no node_modules/network). Typecheck and a render smoke test were run against stubs (see handoff in PHASE-E1 file) | `ui/e1-assistant` | | |
 | E2 | ☐ Not started | `ui/e2-safety-care-sharing` | | |
 | F | ☐ Not started | `ui/f-admin-auth` | | |
 | G | ☐ Not started | `ui/g-polish` | | |
