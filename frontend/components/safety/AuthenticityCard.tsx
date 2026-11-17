@@ -34,13 +34,7 @@ export function AuthenticityCard() {
   }
 
   return (
-    <Card aria-labelledby="auth-h" className="space-y-4">
-      <div>
-        <h2 id="auth-h" className="text-lg font-semibold text-ink">
-          Is this pack genuine?
-        </h2>
-        <p className="mt-1 text-sm text-ink-soft">We can only confirm a pack when an authoritative source is connected.</p>
-      </div>
+    <Card className="space-y-4">
       <form onSubmit={submit} noValidate className="space-y-3">
         <TextField label="Barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} maxLength={64} optional />
         <TextField label="Lot number" value={lot} onChange={(e) => setLot(e.target.value)} maxLength={64} optional />

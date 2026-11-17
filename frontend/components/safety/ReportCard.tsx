@@ -80,16 +80,7 @@ export function ReportCard() {
   ];
 
   return (
-    <Card aria-labelledby="adr-h" className="space-y-4">
-      <div>
-        <h2 id="adr-h" className="text-lg font-semibold text-ink">
-          Note a possible side effect
-        </h2>
-        <p className="mt-1 text-sm text-ink-soft">
-          This keeps a private record of what you noticed. It does not show that a medicine caused it, and nothing is
-          sent to a doctor or regulator. If you feel very unwell, get medical help now.
-        </p>
-      </div>
+    <Card className="space-y-4">
       <form onSubmit={submit} noValidate className="space-y-3">
         <SelectField label="Medicine" value={medId} onChange={(e) => setMedId(e.target.value)} options={options} />
         {!medId && (

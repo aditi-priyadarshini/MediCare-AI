@@ -73,16 +73,7 @@ export function AlternativesCard() {
   }
 
   return (
-    <Card aria-labelledby="alt-h" className="space-y-4">
-      <div>
-        <h2 id="alt-h" className="text-lg font-semibold text-ink">
-          Compare medicines and prices
-        </h2>
-        <p className="mt-1 text-sm text-ink-soft">
-          Find other products with the same ingredients, strength, form and release type. These are candidates to
-          discuss with a pharmacist, not substitutes.
-        </p>
-      </div>
+    <Card className="space-y-4">
       <TextField label="Search the medicine catalogue" value={q} onChange={(e) => search(e.target.value)} autoComplete="off" />
       {hits.length > 0 && (
         <ul className="divide-y divide-line rounded-lg border border-line">

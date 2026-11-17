@@ -113,7 +113,19 @@ export const labelText = (label: NavLabel, t: (key: MessageKey) => string) => ("
  * Trail for the top bar. Top-level pages return [] (a breadcrumb that repeats the page title adds
  * nothing); only nested pages, today the admin console, have one.
  */
+export const SAFETY_PAGES = [
+  { href: "/safety/medicines", label: "My medicines" },
+  { href: "/safety/lookup", label: "Look up a medicine" },
+  { href: "/safety/alternatives", label: "Compare medicines" },
+  { href: "/safety/report", label: "Note a side effect" },
+  { href: "/safety/authenticity", label: "Is this pack genuine?" },
+];
+
 export function breadcrumbsFor(pathname: string): Array<{ href: string; label: string }> {
+  if (pathname.startsWith("/safety/")) {
+    const page = SAFETY_PAGES.find((p) => p.href === pathname);
+    return page ? [{ href: "/safety", label: "Safety Checker" }, { href: page.href, label: page.label }] : [];
+  }
   if (!pathname.startsWith("/admin/")) return [];
   const page = ADMIN_PAGES.find((p) => p.href === pathname);
   return page ? [{ href: "/admin", label: "Admin" }, { href: page.href, label: page.label }] : [];

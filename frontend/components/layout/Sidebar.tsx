@@ -62,7 +62,7 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
         <Logo light compact={collapsed} />
       </div>
 
-      <nav aria-label={t("nav.main")} className="mt-6 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-0.5">
+      <nav aria-label={t("nav.main")} className="mt-4 flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {groupedRoutes(isAdmin).map((group) => (
           <div key={group.id} role="group" aria-label={labelText(group.label, t)}>
             <p className={cn("px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-white/70", collapsed && "sr-only")}>{labelText(group.label, t)}</p>
@@ -81,7 +81,7 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
                       onFocus={show(text)}
                       onBlur={() => setTip(null)}
                       className={cn(
-                        "relative flex min-h-control items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors duration-fast",
+                        "relative flex min-h-[42px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors duration-fast",
                         collapsed && "justify-center",
                         active ? "bg-white/15" : "hover:bg-white/10",
                       )}

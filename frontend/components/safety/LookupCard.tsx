@@ -93,16 +93,7 @@ export function LookupCard() {
   const m = result?.medicine;
 
   return (
-    <Card aria-labelledby="lookup-h" className="space-y-4">
-      <div>
-        <h2 id="lookup-h" className="text-lg font-semibold text-ink">
-          Look up a medicine
-        </h2>
-        <p className="mt-1 text-sm text-ink-soft">
-          Search by name to see side effects, and whether it clashes with your medicines, your health conditions or
-          your allergies. Looking it up does not add it to your list.
-        </p>
-      </div>
+    <Card className="space-y-4">
       <TextField
         label="Medicine name"
         hint="Type at least two letters, for example: ibuprofen"

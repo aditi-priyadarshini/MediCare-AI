@@ -48,17 +48,8 @@ export function CheckCard() {
   }, [run]);
 
   return (
-    <Card aria-labelledby="check-h" className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 id="check-h" className="text-lg font-semibold text-ink">
-            My medicines
-          </h2>
-          <p className="mt-1 text-sm text-ink-soft">
-            Checks what you take now against each other, your health conditions and your allergies, using a
-            limited reference dataset. It cannot tell you that something is safe.
-          </p>
-        </div>
+    <Card className="space-y-4">
+      <div className="flex justify-end">
         <Button variant="secondary" onClick={() => run(typed)} loading={busy && data !== null}>
           Check again
         </Button>
@@ -81,7 +72,7 @@ export function CheckCard() {
           title="No medicines on your list yet"
           action={<LinkButton href="/medications">Add a medicine</LinkButton>}
         >
-          Add what you take and this page will check it for you. You can also look up any medicine above.
+          Add what you take and this page will check it for you. You can also look up any medicine from the Safety page.
         </EmptyState>
       )}
 
