@@ -48,8 +48,15 @@ Unit/axe tests for each new primitive: renders, keyboard operation, focus return
 - Lint, typecheck, test, build pass.
 - Visual smoke check: existing pages still render acceptably with new tokens (no unreadable text, high-contrast still works).
 
-## Handoff
-List every new component with its props, where the Experience mode is stored, and any token that failed a contrast check.
+## Handoff (completed)
+**Import:** `@/components/ui` (index) exports everything; `@/components/ui/primitives` still works unchanged.
+**New components** (all in `components/ui/`): `StatusBadge{tone,icon}`, `SourceBadge{source}`, `PageHeader{title,description,actions,breadcrumb}`, `ErrorState{title,onRetry}`, `StepProgress{steps,current}`, `Dialog{open,onClose,title,role}`, `ConfirmationDialog{open,title,destructive,onConfirm,onCancel}`, `ToastProvider` + `useToast().show(msg,tone)`, `Tabs{items,label}`, `Menu{label,items}`, `AccessibleFormField` (= `FieldShell`).
+**Extended:** `Button` gains `size` and pressed state; `EmptyState` gains `icon`/`action`; `Skeleton` gains `variant`.
+**Experience mode:** `lib/experience.tsx`, stored in `localStorage` key `medicare.experience`, applied as `data-experience` on `<html>`; falls back to Standard if storage is blocked. `ExperienceProvider` and `ToastProvider` are mounted in `app/layout.tsx`.
+**Also fixed:** `/` now redirects (dashboard if signed in, else login) instead of rendering the admin overview.
+**Contrast:** all text pairs pass AA; `#B7791F`, `#38BFA7`, `#F28B82` fail as text and are fill-only (table in `docs/DESIGN.md`).
+**Not done / next:** no menu-based `ExperienceMenu` UI yet (Phase C); only existing pages were not restyled; no live browser check of high-contrast or Easy-read; Hindi/Odia pages unchanged.
+**Results:** lint clean, typecheck clean, 19 files / 192 tests pass (15 new), `next build` passes.
 
 ## Paste-ready prompt
 ```

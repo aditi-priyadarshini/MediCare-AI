@@ -18,22 +18,30 @@ import { cn } from "@/lib/cn";
 
 /* ----------------------------------------------------------------- Button */
 type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Size = "sm" | "md" | "lg";
+const SIZES: Record<Size, string> = {
+  sm: "min-h-[44px] px-3 text-sm", // targets stay 44px; "sm" is only tighter padding
+  md: "min-h-control px-4 text-sm",
+  lg: "min-h-[52px] px-6 text-base",
+};
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-teal-700 text-white hover:bg-brand-900 disabled:bg-teal-700/50",
-  secondary: "bg-surface text-ink border border-line hover:bg-mint-100",
-  ghost: "text-teal-700 hover:bg-mint-100",
-  danger: "bg-danger-700 text-white hover:opacity-90 disabled:opacity-50",
+  primary: "bg-teal-700 text-white hover:bg-brand-900 active:bg-brand-900 active:scale-[0.98] disabled:bg-teal-700/50",
+  secondary: "bg-surface text-ink border border-line hover:bg-mint-100 active:bg-mint-100 active:scale-[0.98] disabled:opacity-60",
+  ghost: "text-teal-700 hover:bg-mint-100 active:bg-mint-100 disabled:opacity-60",
+  danger: "bg-danger-700 text-white hover:opacity-90 active:scale-[0.98] disabled:opacity-50",
 };
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
+  size?: Size;
   loading?: boolean;
   fullWidth?: boolean;
 }
 
 export function Button({
   variant = "primary",
+  size = "md",
   loading,
   fullWidth,
   className,
@@ -48,8 +56,9 @@ export function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold",
-        "transition-colors disabled:cursor-not-allowed",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-semibold",
+        "transition-[colors,transform] duration-fast disabled:cursor-not-allowed",
+        SIZES[size],
         VARIANTS[variant],
         fullWidth && "w-full",
         className,
@@ -98,7 +107,7 @@ export function FieldShell({ label, error, hint, optional, children }: FieldShel
 
 const inputClass = (invalid: boolean) =>
   cn(
-    "min-h-[44px] w-full rounded-lg border bg-surface px-3 text-base text-ink placeholder:text-ink-soft/70",
+    "min-h-control w-full rounded-lg border bg-surface px-3 text-base text-ink placeholder:text-ink-soft/70",
     invalid ? "border-danger-700" : "border-line",
   );
 
@@ -291,8 +300,9 @@ export function VerificationBadge({ status }: { status: string }) {
 }
 
 /* ---------------------------------------------------------- Loading states */
-export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cn("animate-pulse rounded-lg bg-line/60", className)} />;
+export function Skeleton({ className, variant = "block" }: { className?: string; variant?: "block" | "text" | "card" | "row" }) {
+  const shape = { block: "", text: "h-4 w-full", card: "h-32 w-full rounded-card", row: "h-12 w-full" }[variant];
+  return <div aria-hidden className={cn("animate-pulse rounded-lg bg-line/60", shape, className)} />;
 }
 
 export function PageLoading({ label = "Loading" }: { label?: string }) {
@@ -306,11 +316,24 @@ export function PageLoading({ label = "Loading" }: { label?: string }) {
   );
 }
 
-export function EmptyState({ title, children }: { title: string; children?: React.ReactNode }) {
+export function EmptyState({
+  title,
+  children,
+  icon: Icon,
+  action,
+}: {
+  title: string;
+  children?: React.ReactNode;
+  icon?: LucideIcon;
+  /** One primary next step, e.g. a Button or Link. */
+  action?: React.ReactNode;
+}) {
   return (
     <div className="rounded-lg border border-dashed border-line px-4 py-6 text-center">
+      {Icon && <Icon className="mx-auto mb-2 h-6 w-6 text-ink-soft" aria-hidden />}
       <p className="text-sm font-medium text-ink">{title}</p>
       {children && <p className="mt-1 text-sm text-ink-soft">{children}</p>}
+      {action && <div className="mt-3 flex justify-center">{action}</div>}
     </div>
   );
 }

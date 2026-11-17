@@ -1,5 +1,5 @@
-import { AdminOverviewCard } from "@/components/admin/AdminOverviewCard";
+import { AccountsTable } from "@/components/admin/AccountsTable";
 
-export default function AdminHome() {
-  return <AdminOverviewCard />;
+export default function AdminAccountsPage() {
+  return <AccountsTable />;
 }

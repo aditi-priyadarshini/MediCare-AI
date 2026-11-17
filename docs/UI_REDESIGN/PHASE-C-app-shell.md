@@ -41,8 +41,15 @@ Navigation renders every link with the right `href`; admin group hidden for pati
 - Reduced motion removes shell animations.
 - Lint, typecheck, test, build pass.
 
-## Handoff
-Document route config shape (single source for nav + breadcrumbs + palette) so later phases add pages in one place.
+## Handoff (completed)
+**Route config:** `lib/nav.ts` is the single source for sidebar, mobile bar/drawer, breadcrumbs and palette. To add a page: add a row to `NAV_ROUTES` `{ href, icon, label: {key}|{text}, group, shortLabel?, mobilePrimary?, adminOnly?, keywords? }` (plus i18n keys in en/hi/or). Nested admin pages go in `ADMIN_PAGES` (also drives `AdminNav` tabs and breadcrumbs). Palette shortcuts go in `QUICK_ACTIONS` (navigation only). `tests/shell.test.tsx` fails if an href has no `app/(app)/<route>/page.tsx`.
+**New components:** `components/layout/{Sidebar,Topbar,Breadcrumbs,MobileNavigation,NotificationPanel,SearchCommand,ExperienceMenu,UserMenu}`; `components/ui/{Drawer,Popover}` (Dialog now exports `useModalBehaviour`); `components/settings/PreferenceControls` (`ExperienceChoice`, `PreferenceSwitches`). `DisplayToggles` removed (replaced by `ExperienceMenu`).
+**Hooks:** `lib/preferences.ts` `usePreferences()` (saves via `save({...toInput(profile), ...})`, reports failure); `lib/notifications.ts` `useNotifications()`.
+**Settings:** new `/settings` page (language, reading mode, large text, contrast, reduced motion, voice, links to Profile/Feedback).
+**Behaviour:** sidebar collapse stored in `localStorage` key `medicare.sidebar` (try/catch); Ctrl/Cmd+K palette; `viewport-fit=cover` added so safe-area insets work; route fade uses `--motion-base` so reduced motion removes it.
+**Fixed along the way:** sidebar and mobile bar both had landmark name "Main" (axe `landmark-unique`); mobile bar is now "Quick links".
+**Not done / next:** no live browser check (320px overflow, tooltip position, safe-area, real screen reader); pages are not restyled (D/E/F); `AlertsCard`/`RemindersCard` still have their own notification fetch; Feedback/Admin labels stay English; Hindi/Odia strings are machine-generated and unreviewed; the palette shortcuts open pages, they do not deep-link (e.g. "Upload a report" opens Records).
+**Results:** lint clean (0 warnings), typecheck clean, 20 files / 217 tests pass (25 new in `tests/shell.test.tsx`), `next build` passes (`/settings` added).
 
 ## Paste-ready prompt
 ```

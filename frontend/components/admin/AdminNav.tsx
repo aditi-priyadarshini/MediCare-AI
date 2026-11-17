@@ -4,15 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 
-const TABS = [
-  { href: "/admin", label: "Overview" },
-  { href: "/admin/rules", label: "Safety rules" },
-  { href: "/admin/reference", label: "Sources & catalogue" },
-  { href: "/admin/ai", label: "AI providers" },
-  { href: "/admin/feedback", label: "Feedback" },
-  { href: "/admin/accounts", label: "Accounts" },
-  { href: "/admin/audit", label: "Audit log" },
-];
+import { ADMIN_PAGES as TABS } from "@/lib/nav";
 
 export function AdminNav() {
   const pathname = usePathname();

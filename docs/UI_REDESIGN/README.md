@@ -34,10 +34,10 @@ After Phase C, phases D1, D2, E1, E2 and F do not depend on each other and can b
 
 | Phase | Status | Branch | PR | Notes |
 |---|---|---|---|---|
-| A | ☐ Not started | `ui/a-audit` | | |
-| B | ☐ Not started | `ui/b-design-system` | | |
-| C | ☐ Not started | `ui/c-app-shell` | | |
-| D1 | ☐ Not started | `ui/d1-dashboard-onboarding` | | |
+| A | ◐ Code audit + baseline done; browser checks pending (see AUDIT.md §9) | `ui/a-audit` | | Baseline green, 177 tests |
+| B | ✔ Done (see handoff in PHASE-B file) | `ui/b-design-system` | | 192 tests pass, build green |
+| C | ✔ Done (see handoff in PHASE-C file) | `ui/c-app-shell` | | 217 tests pass, build green; no live browser check yet |
+| D1 | ✔ Done (see handoff in PHASE-D1 file) | `ui/d1-dashboard-onboarding` | | 280 tests pass, build green; no live browser check yet |
 | D2 | ☐ Not started | `ui/d2-health-data` | | |
 | E1 | ☐ Not started | `ui/e1-assistant` | | |
 | E2 | ☐ Not started | `ui/e2-safety-care-sharing` | | |
@@ -69,3 +69,12 @@ Record decisions here so later phases do not re-litigate them.
 | 4 | "Search" is a **command palette for navigation and actions** (routes, quick actions). It does not search patient data. | No search endpoint exists; do not fake one. | C |
 | 5 | AI responses are **not streamed** (API returns whole replies). Show a real loading state; do not simulate typing. | `docs/API.md` has no streaming endpoint. | E1 |
 | 6 | Brief palette is kept, with contrast caveats: `#B7791F` amber and `#38BFA7` mint fail AA as text on white. Keep the darkened `--amber-600` (`#8F5D12`) for text; use the brighter values for fills/icons only. | WCAG 2.2 AA. | B |
+| 7 | Keep one `/profile` page, nav label "Health Profile". | Avoid scope creep. | A/C |
+| 8 | Experience mode in `localStorage` with safe default. | No profile field exists; no backend changes. | A/B |
+| 9 | Self-host Inter via the `@fontsource-variable/inter` npm package (not `next/font/google`); no Geist. | `next/font/google` fetches from Google at build time, which fails offline/in CI sandboxes; the package ships the font files. **Only dependency added in Phase B** (OFL licence, CSS import, no runtime request). | B |
+| 10 | Bell badge uses the existing `GET /notifications/unread-count` (due-now, unread); the list uses `GET /notifications?limit=20`. No backend change. | Real data only; endpoint already exists. | C |
+| 11 | On phones (<640px) the experience menu, voice button and account menu live in the "More" drawer; the top bar keeps logo mark, Search, **Emergency**, Notifications. | 320px width; Emergency must never be hidden. | C |
+| 12 | Content width raised from `max-w-5xl` to `max-w-[1440px]` per spec. Existing pages were not re-laid-out; D1/D2/E/F may want inner max-widths. | Spec §5. | C |
+| 13 | The dashboard's "Ask the assistant" examples are plain text, not links that pre-fill a question. The assistant page has no deep-link input, and Phase D1 does not change it. | Clicking an example that does not ask it would mislead. E1 may add a `?q=` input and then make them links. | D1 |
+| 14 | `ExperienceProvider` now exposes `ready` (false until the saved reading mode has been read on this device). The dashboard waits for it so Easy-read users do not trigger the Standard-only requests for one render. | Avoids wasted calls and a flash of the full layout. | D1 |
+| 15 | "Upcoming" shows appointment *requests* only (status text from `STATUS_BADGE`); it is hidden while loading and when nothing is open and in the future. | No confirmed-booking claims; no layout jump. | D1 |

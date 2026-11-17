@@ -8,7 +8,7 @@
   --teal-700: #157873; /* darkened from #167c78 so teal text on mint passes WCAG AA (4.74:1) */
   --teal-500: #38bfa7;
   --mint-100: #e9f5f2;
-  --canvas: #f5f7fa;
+  --canvas: #faf9f6; /* warm ivory (was #f5f7fa) */
   --surface: #ffffff;
   --border: #d5dde3;
   --text-primary: #172b36;
@@ -21,6 +21,29 @@
   --blue-100: #eaf2fc;
   --success-700: #18794e;
   --success-100: #e8f5ee;
+
+  /* Phase B additions. AI-related surfaces only: lavender. Coral is fills/illustration only, never text. */
+  --lavender-100: #eeeafe;
+  --lavender-700: #4b3bb0; /* text on lavender-100 (6.99:1) */
+  --coral-500: #f28b82;
+  --amber-fill: #b7791f; /* fill/icon only; amber text uses --amber-600 */
+
+  /* Radius, elevation, motion, z-index */
+  --radius-sm: 8px;
+  --radius-card: 14px;
+  --radius-lg: 20px;
+  --shadow-1: 0 1px 2px rgb(23 44 61 / 0.06);
+  --shadow-2: 0 4px 12px rgb(23 44 61 / 0.08);
+  --shadow-3: 0 12px 32px rgb(23 44 61 / 0.14);
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 250ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --z-sticky: 20;
+  --z-nav: 30;
+  --z-dialog: 50;
+  --z-toast: 60;
 }
 
 /* High-contrast mode (patient preference): stronger borders/text, darker actions. */
@@ -30,11 +53,53 @@ html[data-contrast="high"] {
   --teal-700: #0b4f4c;
   --mint-100: #ffffff;
   --canvas: #ffffff;
+  --lavender-100: #ffffff;
+  --lavender-700: #2a1f80;
+  --amber-600: #5e3c05;
+  --amber-100: #ffffff;
+  --red-700: #8a1220;
+  --red-100: #ffffff;
+  --blue-100: #ffffff;
+  --success-700: #0f5c3a;
+  --success-100: #ffffff;
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: 0 0 0 2px #172b36;
 }
 
 /* Large-text mode: 16px+ baseline scales every rem-based size. */
 html[data-large-text="true"] {
   font-size: 118%;
+}
+
+/* Components take durations from --motion-*; reduced motion zeroes them here and below. */
+html[data-reduce-motion="true"] {
+  --motion-fast: 0.001ms;
+  --motion-base: 0.001ms;
+  --motion-slow: 0.001ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0.001ms;
+    --motion-base: 0.001ms;
+    --motion-slow: 0.001ms;
+  }
+}
+
+/* Easy-read experience mode: bigger controls, looser rhythm. Set on <html data-experience>. */
+html[data-experience="easy"] {
+  --control-min: 52px;
+}
+html[data-experience="easy"] body {
+  line-height: 1.7;
+}
+html[data-experience="easy"] .xp-hide-easy {
+  display: none;
+}
+
+/* Tabular numerals for medical values, dates and doses. */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 html[data-reduce-motion="true"] *,
@@ -76,3 +141,46 @@ body {
   outline: 3px solid var(--blue-700);
   outline-offset: 2px;
 }
+
+/* Phase C: shell motion. Durations come from --motion-*, so reduced motion removes these too. */
+@keyframes route-enter {
+  from { opacity: 0.55; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes drawer-in {
+  from { transform: translateX(24px); opacity: 0.6; }
+  to { transform: none; opacity: 1; }
+}
+.route-enter { animation: route-enter var(--motion-base) var(--ease-out); }
+.popover-in { animation: popover-in var(--motion-fast) var(--ease-out); }
+.drawer-in { animation: drawer-in var(--motion-base) var(--ease-out); }
+
+/* Easy-read dashboard: larger secondary text without touching other pages. */
+html[data-experience="easy"] .dash-root {
+  font-size: 1.125rem;
+}
+html[data-experience="easy"] .dash-root .text-sm {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+html[data-experience="easy"] .dash-root .text-xs {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* Onboarding step transitions: direction-aware, short, and removed by reduced motion
+   (--motion-base becomes ~0 and the blanket reduce-motion rules above also apply). */
+@keyframes step-forward {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes step-back {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: none; }
+}
+.step-forward { animation: step-forward var(--motion-base) var(--ease-out) both; }
+.step-back { animation: step-back var(--motion-base) var(--ease-out) both; }

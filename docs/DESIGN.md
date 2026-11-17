@@ -244,3 +244,29 @@ Use 21st.dev to explore:
 Prefer restrained, accessible patterns. Avoid animated shader backgrounds and marketing-style effects inside clinical workflows. Before installing a component, inspect its code, dependencies, accessibility, licence and responsive behaviour. Adapt it to the tokens above rather than letting every imported component introduce a different visual language.
 
 Reference: https://21st.dev/community/components
+
+
+## Phase B tokens and contrast (UI redesign)
+
+Source of truth for tokens is `frontend/app/globals.css` (CSS variables) mapped in `tailwind.config.ts`.
+New: `canvas #FAF9F6`, `lavender-100/700` (AI surfaces only), `coral-500` (fills only), `amber-fill #B7791F` (fills only),
+radius `sm/card/lg`, shadows `1/2/3`, motion `--motion-fast/base/slow` (zeroed by reduced motion), z-index scale,
+type utilities `text-display/h1/h2/h3`, `.tnum`. Easy-read: `html[data-experience="easy"]` sets `--control-min: 52px`.
+High-contrast mode overrides every status, lavender and shadow token.
+
+Measured WCAG contrast (text pairs actually used):
+
+| Pair | Ratio | Result |
+|---|---|---|
+| ink on canvas | 13.90 | AA |
+| ink-soft on canvas / white | 5.50 / 5.79 | AA |
+| teal-700 on white / mint-100 | 5.29 / 4.74 | AA |
+| white on teal-700 / brand-900 / danger-700 | 5.29 / 12.12 / 6.51 | AA |
+| amber-600 on amber-100 | 5.13 | AA |
+| danger-700 on danger-100 | 5.66 | AA |
+| info-700 on info-100 | 5.45 | AA |
+| success-700 on success-100 | 4.82 | AA |
+| lavender-700 on lavender-100 | 6.99 | AA |
+| amber-fill `#B7791F` as text on white | 3.64 | **Fails: fill/icon only** |
+| teal-500 `#38BFA7` as text on white | 2.29 | **Fails: fill/icon only** |
+| coral-500 `#F28B82` as text on white | 2.39 | **Fails: fill/icon only** |

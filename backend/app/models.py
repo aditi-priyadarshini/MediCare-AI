@@ -1,90 +1,106 @@
-"""Import every model so Alembic autogenerate and create_all see the full metadata."""
+import uuid
+from datetime import date, datetime
 
-from app.assistant.models import AiEvidenceItem, ChatContextAccessLog, ChatMessage, ChatSession
-from app.audit.models import AuditLog
-from app.core.db import Base
-from app.discovery.models import (
-    Appointment,
-    Doctor,
-    DoctorCredential,
-    Pharmacy,
-    PharmacyInventorySnapshot,
-    ProviderSource,
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
 )
-from app.emergency.models import EmergencySettings, EmergencySimulation
-from app.feedback.models import Feedback
-from app.identity.models import OAuthAccount, OtpChallenge, SessionRecord, User
-from app.medications.models import (
-    DoseLog,
-    Medication,
-    MedicationSchedule,
-    MedicationSupply,
-    Medicine,
-    Notification,
-    Prescription,
-)
-from app.nutrition.models import DietPlan, DietPreference
-from app.patients.models import (
-    EmergencyContact,
-    PatientAllergy,
-    PatientCondition,
-    PatientProfile,
-    UserConsent,
-)
-from app.records.models import HealthRecord, LabResult
-from app.safety.models import (
-    ActiveIngredient,
-    AdverseEventReport,
-    MedicineIngredient,
-    MedicinePrice,
-    ReferenceSource,
-    SafetyRule,
-)
-from app.sharing.models import ShareAccessChallenge, ShareAccessLog, ShareGrant
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
 
-__all__ = [
-    "ActiveIngredient",
-    "AdverseEventReport",
-    "AiEvidenceItem",
-    "Appointment",
-    "AuditLog",
-    "Base",
-    "ChatContextAccessLog",
-    "ChatMessage",
-    "ChatSession",
-    "DietPlan",
-    "DietPreference",
-    "Doctor",
-    "DoctorCredential",
-    "DoseLog",
-    "EmergencyContact",
-    "EmergencySettings",
-    "EmergencySimulation",
-    "Feedback",
-    "HealthRecord",
-    "LabResult",
-    "Medication",
-    "MedicationSchedule",
-    "MedicationSupply",
-    "Medicine",
-    "MedicineIngredient",
-    "MedicinePrice",
-    "Notification",
-    "OAuthAccount",
-    "OtpChallenge",
-    "PatientAllergy",
-    "PatientCondition",
-    "PatientProfile",
-    "Pharmacy",
-    "PharmacyInventorySnapshot",
-    "Prescription",
-    "ProviderSource",
-    "ReferenceSource",
-    "SafetyRule",
-    "SessionRecord",
-    "ShareAccessChallenge",
-    "ShareAccessLog",
-    "ShareGrant",
-    "User",
-    "UserConsent",
-]
+from app.core.db import Base, TimestampMixin
+
+SHARE_CATEGORIES = ("profile", "conditions", "allergies", "medications", "labs", "records")
+SHARE_EVENTS = (
+    "code_sent",
+    "code_failed",
+    "verified",
+    "viewed",
+    "blocked_revoked",
+    "blocked_expired",
+)
+
+
+class ShareGrant(Base, TimestampMixin):
+    """A patient's consent to show a chosen slice of their record to one named recipient.
+
+    The link token is random and only its SHA-256 is stored. The grant is re-checked (revoked,
+    expired, scope) on every view, so revocation takes effect on the next request.
+    """
+
+    __tablename__ = "share_grants"
+    __table_args__ = (
+        CheckConstraint(
+            "date_from IS NULL OR date_to IS NULL OR date_from <= date_to", name="dates_valid"
+        ),
+        CheckConstraint(
+            "jsonb_typeof(categories) = 'array' AND categories <> '[]'::jsonb",
+            name="categories_valid",
+        ),
+        Index("ix_share_grants_patient_created", "patient_user_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    patient_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    recipient_name: Mapped[str] = mapped_column(Text, nullable=False)
+    recipient_email: Mapped[str] = mapped_column(Text, nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    categories: Mapped[list] = mapped_column(JSONB, nullable=False)
+    date_from: Mapped[date | None] = mapped_column(Date)
+    date_to: Mapped[date | None] = mapped_column(Date)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    access_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class ShareAccessChallenge(Base):
+    """One-time code emailed to the recipient address the patient named (recipient check)."""
+
+    __tablename__ = "share_access_challenges"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    grant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("share_grants.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ShareAccessLog(Base):
+    """Append-only. Event names, times and the caller's IP only: never medical content."""
+
+    __tablename__ = "share_access_logs"
+    __table_args__ = (
+        CheckConstraint(
+            "event IN ('code_sent','code_failed','verified','viewed',"
+            "'blocked_revoked','blocked_expired')",
+            name="event_valid",
+        ),
+        Index("ix_share_access_logs_grant_created", "grant_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    grant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("share_grants.id", ondelete="RESTRICT"), nullable=False
+    )
+    event: Mapped[str] = mapped_column(String(24), nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

@@ -1,123 +1,84 @@
 "use client";
 
-import { CalendarClock, MapPin } from "lucide-react";
-import Link from "next/link";
-import { Card, Skeleton } from "@/components/ui/primitives";
+import { AiPanel } from "@/components/dashboard/AiPanel";
+import { AttentionCard } from "@/components/dashboard/AttentionCard";
+import { CompletionTile, HealthSection } from "@/components/dashboard/DashboardSections";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { TodayCard } from "@/components/dashboard/TodayCard";
+import { UpcomingCard } from "@/components/dashboard/UpcomingCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api-client";
+import { doseCounts, firstName, todaysDoses } from "@/lib/dashboard";
+import { useExperience } from "@/lib/experience";
 import { useAsync } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import { useProfile } from "@/lib/profile-context";
-import type { Page } from "@/lib/types";
+import type { Dose, Page } from "@/lib/types";
 
-const COMING = [
-  { label: "Find care", icon: MapPin },
-];
+const DAY = 86_400_000;
 
 export default function DashboardPage() {
   const { profile } = useProfile();
-  const counts = useAsync(async () => {
-    const [c, a, e, r, l, m] = await Promise.all([
-      api<Page<unknown>>("/conditions?limit=1"),
-      api<Page<unknown>>("/allergies?limit=1"),
-      api<Page<unknown>>("/emergency/contacts?limit=1"),
-      api<Page<unknown>>("/records?limit=1"),
-      api<Page<unknown>>("/labs?limit=1"),
-      api<Page<unknown>>("/medications?limit=1"),
-    ]);
-    return { conditions: c.total, allergies: a.total, contacts: e.total, records: r.total, labs: l.total, medicines: m.total };
+  const { t } = useT();
+  const { experience, ready } = useExperience();
+  const easy = experience === "easy";
+  // Wait for the saved reading mode so Easy-read users never trigger the extra requests for a moment.
+  const standard = ready && !easy;
+
+  // Shared by more than one tile, so fetched once here. Each tile still handles its own failure.
+  const doses = useAsync(() => {
+    const from = new Date(Date.now() - DAY).toISOString();
+    const to = new Date(Date.now() + 2 * DAY).toISOString();
+    return api<Page<Dose>>(`/doses?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=100`);
   }, []);
 
-  const firstName = profile.display_name.split(" ")[0];
-  const checklist = [
-    { label: "Date of birth", done: profile.date_of_birth !== null },
-    { label: "Height and weight", done: profile.height_cm !== null && profile.weight_kg !== null },
-    { label: "Blood group", done: profile.blood_group !== null },
-    { label: "Emergency contact", done: (counts.data?.contacts ?? 0) > 0 },
-  ];
+  const counts = doses.data ? doseCounts(todaysDoses(doses.data.items, profile.timezone, new Date())) : null;
+  const context =
+    counts && counts.waiting > 0
+      ? counts.overdue > 0
+        ? t("dash.ctx.overdue", { n: counts.waiting, o: counts.overdue })
+        : t(counts.waiting === 1 ? "dash.ctx.one" : "dash.ctx.many", { n: counts.waiting })
+      : t("dash.ctx.neutral");
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-navy-900">Hello, {firstName}</h1>
-        <p className="mt-1 text-ink-soft">Here’s where your health record stands today.</p>
+    <div className="dash-root mx-auto min-w-0 max-w-[1200px] space-y-6">
+      <div className="grid items-start gap-4 lg:grid-cols-12">
+        <PageHeader
+          className="mb-0 lg:col-span-8"
+          title={t("dash.hello", { name: firstName(profile.display_name) })}
+          description={context}
+        />
+        {standard && (
+          <div className="lg:col-span-4">
+            <CompletionTile />
+          </div>
+        )}
       </div>
 
-      <Card aria-labelledby="completeness">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="completeness" className="font-semibold text-navy-900">
-            Profile completeness
-          </h2>
-          <span className="text-lg font-semibold tabular-nums text-teal-700">{profile.completeness}%</span>
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className={easy ? "lg:col-span-7" : "lg:col-span-8"}>
+          <TodayCard doses={doses} />
         </div>
-        <div
-          role="progressbar"
-          aria-valuenow={profile.completeness}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Profile completeness"
-          className="mt-3 h-2 overflow-hidden rounded-full bg-line"
-        >
-          <div className="h-full bg-teal-500" style={{ width: `${profile.completeness}%` }} />
+        <div className={easy ? "lg:col-span-5" : "lg:col-span-4"}>
+          <AttentionCard />
         </div>
-        <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-          {checklist.map((c) => (
-            <li key={c.label} className="flex items-center gap-2">
-              <span aria-hidden>{c.done ? "✓" : "○"}</span>
-              <span className={c.done ? "text-ink" : "text-ink-soft"}>
-                {c.label} <span className="sr-only">{c.done ? "(done)" : "(not added yet)"}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-xs text-ink-soft">
-          This shows how much of your profile is filled in. It is not a measure of your health.
-        </p>
-        <Link href="/profile" className="mt-3 inline-block text-sm font-semibold text-teal-700 underline">
-          Complete your profile
-        </Link>
-      </Card>
-
-      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {[
-          ["Conditions", counts.data?.conditions, "/profile"],
-          ["Allergies", counts.data?.allergies, "/profile"],
-          ["Emergency contacts", counts.data?.contacts, "/profile"],
-          ["Records", counts.data?.records, "/records"],
-          ["Lab results", counts.data?.labs, "/labs"],
-          ["Medicines", counts.data?.medicines, "/medications"],
-        ].map(([label, n, href]) => (
-          <Card key={label as string}>
-            <Link href={href as string} className="text-sm text-ink-soft underline-offset-2 hover:underline">
-              {label}
-            </Link>
-            {counts.loading ? (
-              <Skeleton className="mt-2 h-8 w-12" />
-            ) : (
-              <p className="mt-1 text-3xl font-semibold tabular-nums text-navy-900">{n ?? "–"}</p>
-            )}
-          </Card>
-        ))}
       </div>
 
-      <section aria-labelledby="coming">
-        <h2 id="coming" className="mb-3 flex items-center gap-2 font-semibold text-navy-900">
-          <CalendarClock className="h-5 w-5 text-ink-soft" aria-hidden /> Coming in later releases
-        </h2>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          {COMING.map(({ label, icon: Icon }) => (
-            <div
-              key={label}
-              aria-disabled="true"
-              className="flex min-h-[88px] flex-col items-start justify-between rounded-card border border-dashed border-line p-3 text-ink-soft"
-            >
-              <Icon className="h-5 w-5" aria-hidden />
-              <div>
-                <p className="text-sm font-medium">{label}</p>
-                <p className="text-xs">Not available yet</p>
-              </div>
-            </div>
-          ))}
+      {standard && <HealthSection doses={doses} />}
+
+      {/* Upcoming requests hide themselves when there are none; the empty cell then drops out of the grid. */}
+      <div className="grid gap-4 lg:auto-cols-fr lg:grid-flow-col">
+        <div className="min-w-0">
+          <AiPanel simple={easy} />
         </div>
-      </section>
+        {standard && (
+          <div className="min-w-0 empty:hidden">
+            <UpcomingCard />
+          </div>
+        )}
+      </div>
+
+      <QuickActions />
     </div>
   );
 }
