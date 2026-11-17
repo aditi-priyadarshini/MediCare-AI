@@ -77,7 +77,7 @@ export function RecordsSection() {
   const [notice, setNotice] = useState<{ tone: "warning" | "success"; text: string } | null>(null);
   const list = useAsync(() => api<Page<HealthRecord>>(`/records?limit=${LIMIT}${type ? `&record_type=${type}` : ""}`), [type]);
 
-  const items = list.data?.items ?? [];
+  const items = useMemo(() => list.data?.items ?? [], [list.data]);
   const shown = useMemo(() => filterRecords(items, { query, from, to }), [items, query, from, to]);
   const open = openId ? (items.find((r) => r.id === openId) ?? null) : null;
   const narrowed = Boolean(query.trim() || from || to);

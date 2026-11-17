@@ -9,7 +9,7 @@ import { ConfirmationDialog } from "@/components/ui/Dialog";
 import { Drawer } from "@/components/ui/Drawer";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useToast } from "@/components/ui/Toast";
-import { Alert, Button, Card, EmptyState, Skeleton } from "@/components/ui/primitives";
+import { Alert, Card, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { api, errorMessage } from "@/lib/api-client";
 import { TABLE_QUERY, useAsync, useMediaQuery } from "@/lib/hooks";
 import { comparableTrend, FLAG_LABEL, formatDate, formatLabValue, NO_COMPARABLE_HISTORY } from "@/lib/records";
