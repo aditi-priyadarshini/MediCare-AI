@@ -47,3 +47,23 @@ export function useCountdown(initial = 0) {
   }, [left]);
   return { left, restart: (s: number) => setLeft(s) };
 }
+
+/**
+ * True while the media query matches. Starts false (server and first paint), then follows the
+ * browser; returns false where matchMedia does not exist (tests).
+ */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia(query);
+    const update = () => setMatches(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
+
+/** Width from which dense data is shown as a table instead of stacked cards. */
+export const TABLE_QUERY = "(min-width: 768px)";

@@ -10,9 +10,9 @@ import { useProfile } from "@/lib/profile-context";
 import type { Dose, EmergencyContact, LabResult, Page } from "@/lib/types";
 
 /** Profile completion plus the emergency-contact count (left out of the missing list if that call fails). */
-export function CompletionTile() {
+export function CompletionTile({ refreshKey = 0 }: { refreshKey?: number }) {
   const { profile } = useProfile();
-  const contacts = useAsync(() => api<Page<EmergencyContact>>("/emergency/contacts?limit=1"), []);
+  const contacts = useAsync(() => api<Page<EmergencyContact>>("/emergency/contacts?limit=1"), [refreshKey]);
   return <ProfileCompletion percent={profile.completeness} missing={missingProfileItems(profile, contacts.data ? contacts.data.total : null)} />;
 }
 

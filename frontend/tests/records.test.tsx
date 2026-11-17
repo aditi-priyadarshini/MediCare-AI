@@ -99,3 +99,55 @@ describe("TrendChart", () => {
     expect(container.textContent).not.toMatch(/abnormal|healthy|disease|diagnos/i);
   });
 });
+
+import { comparableTrend, filterRecords, labBody, labFormProblems, emptyLabForm, normUnit } from "@/lib/records";
+
+describe("filterRecords", () => {
+  const rec = (o: Partial<{ title: string; provider_name: string | null; notes: string | null; record_type: "lab_report" | "prescription"; record_date: string | null }>) => ({
+    title: "Blood test", provider_name: null, notes: null, record_type: "lab_report" as const, record_date: "2026-03-10", ...o,
+  });
+  it("matches text on title, provider, notes and type", () => {
+    const items = [rec({}), rec({ title: "Scan", provider_name: "City Lab" }), rec({ title: "Rx", record_type: "prescription" })];
+    expect(filterRecords(items, { query: "city", from: "", to: "" })).toHaveLength(1);
+    expect(filterRecords(items, { query: "prescription", from: "", to: "" })).toHaveLength(1);
+  });
+  it("applies an inclusive date range and drops undated records only when a range is set", () => {
+    const items = [rec({ record_date: "2026-03-10" }), rec({ record_date: "2026-04-01" }), rec({ record_date: null })];
+    expect(filterRecords(items, { query: "", from: "2026-03-10", to: "2026-03-31" })).toHaveLength(1);
+    expect(filterRecords(items, { query: "", from: "", to: "" })).toHaveLength(3);
+  });
+});
+
+describe("comparableTrend", () => {
+  const trend: LabTrend = {
+    test_name: "Glucose", unit: "mg/dL", ref_low: 70, ref_high: 100,
+    points: [
+      { id: "a", observed_on: "2026-01-01", value: 5.2, flag: "normal" },
+      { id: "b", observed_on: "2026-02-01", value: 95, flag: "normal" },
+      { id: "c", observed_on: "2026-03-01", value: 110, flag: "high" },
+    ],
+  };
+  it("keeps only points in the newest result's unit and counts the rest", () => {
+    const r = comparableTrend(trend, [
+      { id: "a", unit: "mmol/L" }, { id: "b", unit: " MG/DL " }, { id: "c", unit: "mg/dL" },
+    ]);
+    expect(r.trend.points.map((p) => p.id)).toEqual(["b", "c"]);
+    expect(r.excluded).toBe(1);
+  });
+  it("drops points it cannot check", () => {
+    expect(comparableTrend(trend, [{ id: "c", unit: "mg/dL" }]).trend.points).toHaveLength(1);
+  });
+  it("normalises units", () => expect(normUnit(" G/dL ")).toBe("g/dl"));
+});
+
+describe("lab form", () => {
+  it("requires test, result and date; rejects low above high", () => {
+    const e = labFormProblems({ ...emptyLabForm(), observed_on: "" });
+    expect(Object.keys(e)).toEqual(expect.arrayContaining(["test_name", "result", "observed_on"]));
+    expect(labFormProblems({ ...emptyLabForm(), test_name: "x", result: "1", ref_low: "9", ref_high: "2" }).ref_low).toMatch(/can’t be above/);
+  });
+  it("stores numbers as numbers and words as text without a range", () => {
+    expect(labBody({ ...emptyLabForm(), test_name: "Hb", result: "11.2", ref_low: "12" })).toMatchObject({ value_numeric: 11.2, value_text: null, ref_low: 12 });
+    expect(labBody({ ...emptyLabForm(), test_name: "HIV", result: "Negative", ref_low: "1" })).toMatchObject({ value_numeric: null, value_text: "Negative", ref_low: null });
+  });
+});

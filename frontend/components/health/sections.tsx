@@ -12,7 +12,10 @@ import {
   CheckboxField,
   VerificationBadge,
 } from "@/components/ui/primitives";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { ConfirmationDialog } from "@/components/ui/Dialog";
 import { api, errorMessage, fieldErrors } from "@/lib/api-client";
+import { useT } from "@/lib/i18n";
 import { useAsync } from "@/lib/hooks";
 import type { Allergy, Condition, EmergencyContact, Page } from "@/lib/types";
 import { isE164, isEmail, toE164 } from "@/lib/validation";
@@ -38,12 +41,45 @@ function useSubmit() {
   return { error, busy, run, setError };
 }
 
+/** Asks before an entry is removed. `kind` picks the wording: entries are hidden, contacts are deleted. */
+function RemoveDialog({
+  target,
+  kind,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  target: { id: string; label: string } | null;
+  kind: "entry" | "contact";
+  busy: boolean;
+  onConfirm: (id: string) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useT();
+  const entry = kind === "entry";
+  return (
+    <ConfirmationDialog
+      open={target !== null}
+      destructive
+      loading={busy}
+      title={target ? `${t(entry ? "prof.remove.title" : "prof.contact.title")} ${target.label}` : ""}
+      confirmLabel={t(entry ? "prof.remove.confirm" : "prof.contact.confirm")}
+      cancelLabel={t("prof.confirm.cancel")}
+      onConfirm={() => target && onConfirm(target.id)}
+      onCancel={onCancel}
+    >
+      {t(entry ? "prof.remove.body" : "prof.contact.body")}
+    </ConfirmationDialog>
+  );
+}
+
 /* -------------------------------------------------------------- Conditions */
 export function ConditionsSection({ onChange }: { onChange?: () => void }) {
   const list = useAsync(() => api<Page<Condition>>("/conditions"), []);
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState<string>();
   const s = useSubmit();
+  const [pending, setPending] = useState<{ id: string; label: string } | null>(null);
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,11 +99,18 @@ export function ConditionsSection({ onChange }: { onChange?: () => void }) {
       await list.reload();
       onChange?.();
     });
+  const removeCondition = async (id: string) => {
+    await patch(id, { status: "entered_in_error" });
+    setPending(null);
+  };
 
   return (
     <div className="space-y-3">
+      <RemoveDialog target={pending} kind="entry" busy={s.busy} onConfirm={(id) => void removeCondition(id)} onCancel={() => setPending(null)} />
       {s.error && <Alert tone="danger">{s.error}</Alert>}
-      {list.loading && !list.data ? (
+      {list.error && !list.data ? (
+        <ErrorState title="Couldn’t load conditions" onRetry={() => void list.reload()}>{errorMessage(list.error)}</ErrorState>
+      ) : list.loading && !list.data ? (
         <Loading />
       ) : list.data && list.data.items.length > 0 ? (
         <ul className="divide-y divide-line rounded-lg border border-line">
@@ -89,7 +132,7 @@ export function ConditionsSection({ onChange }: { onChange?: () => void }) {
                 <Button
                   variant="ghost"
                   aria-label={`Remove ${c.display_name} (entered in error)`}
-                  onClick={() => void patch(c.id, { status: "entered_in_error" })}
+                  onClick={() => setPending({ id: c.id, label: c.display_name })}
                 >
                   <Trash2 className="h-4 w-4" aria-hidden /> Remove
                 </Button>
@@ -139,6 +182,7 @@ export function AllergiesSection({ onChange }: { onChange?: () => void }) {
   const [severity, setSeverity] = useState("");
   const [subError, setSubError] = useState<string>();
   const s = useSubmit();
+  const [pending, setPending] = useState<{ id: string; label: string } | null>(null);
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,17 +205,22 @@ export function AllergiesSection({ onChange }: { onChange?: () => void }) {
     });
   };
 
-  const remove = (id: string) =>
-    s.run(async () => {
+  const remove = async (id: string) => {
+    await s.run(async () => {
       await api(`/allergies/${id}`, { method: "PATCH", body: { status: "entered_in_error" } });
       await list.reload();
       onChange?.();
     });
+    setPending(null);
+  };
 
   return (
     <div className="space-y-3">
+      <RemoveDialog target={pending} kind="entry" busy={s.busy} onConfirm={(id) => void remove(id)} onCancel={() => setPending(null)} />
       {s.error && <Alert tone="danger">{s.error}</Alert>}
-      {list.loading && !list.data ? (
+      {list.error && !list.data ? (
+        <ErrorState title="Couldn’t load allergies" onRetry={() => void list.reload()}>{errorMessage(list.error)}</ErrorState>
+      ) : list.loading && !list.data ? (
         <Loading />
       ) : list.data && list.data.items.length > 0 ? (
         <ul className="divide-y divide-line rounded-lg border border-line">
@@ -188,7 +237,7 @@ export function AllergiesSection({ onChange }: { onChange?: () => void }) {
               <Button
                 variant="ghost"
                 aria-label={`Remove ${a.substance} allergy`}
-                onClick={() => void remove(a.id)}
+                onClick={() => setPending({ id: a.id, label: a.substance })}
               >
                 <Trash2 className="h-4 w-4" aria-hidden /> Remove
               </Button>
@@ -220,6 +269,7 @@ export function ContactsSection({ onChange }: { onChange?: () => void }) {
   const [form, setForm] = useState({ name: "", relationship: "", phone: "", email: "", primary: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const s = useSubmit();
+  const [pending, setPending] = useState<{ id: string; label: string } | null>(null);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -254,12 +304,14 @@ export function ContactsSection({ onChange }: { onChange?: () => void }) {
     });
   };
 
-  const remove = (id: string) =>
-    s.run(async () => {
+  const remove = async (id: string) => {
+    await s.run(async () => {
       await api(`/emergency/contacts/${id}`, { method: "DELETE" });
       await list.reload();
       onChange?.();
     });
+    setPending(null);
+  };
 
   const makePrimary = (id: string) =>
     s.run(async () => {
@@ -269,8 +321,11 @@ export function ContactsSection({ onChange }: { onChange?: () => void }) {
 
   return (
     <div className="space-y-3">
+      <RemoveDialog target={pending} kind="contact" busy={s.busy} onConfirm={(id) => void remove(id)} onCancel={() => setPending(null)} />
       {s.error && <Alert tone="danger">{s.error}</Alert>}
-      {list.loading && !list.data ? (
+      {list.error && !list.data ? (
+        <ErrorState title="Couldn’t load contacts" onRetry={() => void list.reload()}>{errorMessage(list.error)}</ErrorState>
+      ) : list.loading && !list.data ? (
         <Loading />
       ) : list.data && list.data.items.length > 0 ? (
         <ul className="divide-y divide-line rounded-lg border border-line">
@@ -296,7 +351,7 @@ export function ContactsSection({ onChange }: { onChange?: () => void }) {
                     Make primary
                   </Button>
                 )}
-                <Button variant="ghost" aria-label={`Delete ${c.name}`} onClick={() => void remove(c.id)}>
+                <Button variant="ghost" aria-label={`Delete ${c.name}`} onClick={() => setPending({ id: c.id, label: c.name })}>
                   <Trash2 className="h-4 w-4" aria-hidden /> Delete
                 </Button>
               </div>

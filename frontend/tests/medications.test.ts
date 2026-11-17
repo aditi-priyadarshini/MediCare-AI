@@ -125,3 +125,43 @@ describe("alertText", () => {
     );
   });
 });
+
+import { alertsFor, defaultScheduleDraft, medsForTab, nextPendingDose, scheduleDraftToBody, ALERT_TONE } from "@/lib/medications";
+
+describe("medication list helpers", () => {
+  it("maps tabs to statuses and never lists entries removed in error", () => {
+    const m = [{ status: "active" }, { status: "paused" }, { status: "stopped" }, { status: "entered_in_error" }] as Array<{ status: "active" | "paused" | "stopped" | "entered_in_error" }>;
+    expect(medsForTab(m, "active")).toHaveLength(1);
+    expect(medsForTab(m, "completed")[0]!.status).toBe("stopped");
+    expect(medsForTab(m, "paused")).toHaveLength(1);
+  });
+  it("finds the earliest waiting dose of one medicine, overdue first by time", () => {
+    const ds = [
+      dose({ id: "late", scheduled_at: "2026-11-15T10:00:00Z" }),
+      dose({ id: "early", scheduled_at: "2026-11-15T02:00:00Z", overdue: true }),
+      dose({ id: "done", scheduled_at: "2026-11-15T01:00:00Z", status: "taken" }),
+      dose({ id: "other", medication_id: "x", scheduled_at: "2026-11-15T00:00:00Z" }),
+    ];
+    expect(nextPendingDose(ds, "m")!.id).toBe("early");
+    expect(nextPendingDose([], "m")).toBeNull();
+  });
+  it("filters alerts per medicine; out of stock is caution, expired is danger", () => {
+    const a = [{ medication_id: "m" }, { medication_id: "n" }] as MedAlert[];
+    expect(alertsFor(a, "m")).toHaveLength(1);
+    expect(ALERT_TONE.out_of_stock).toBe("warning");
+    expect(ALERT_TONE.expired).toBe("danger");
+  });
+});
+
+describe("scheduleDraftToBody", () => {
+  const base = defaultScheduleDraft("2026-11-17");
+  it("accepts a daily schedule", () => {
+    expect(scheduleDraftToBody(base).body).toMatchObject({ times: ["08:00"], days_of_week: null, every_n_days: 1 });
+  });
+  it("reports problems and returns no body", () => {
+    expect(scheduleDraftToBody({ ...base, repeat: "weekdays" }).errors.days).toBeTruthy();
+    expect(scheduleDraftToBody({ ...base, repeat: "interval", every: "1" }).errors.every).toBeTruthy();
+    expect(scheduleDraftToBody({ ...base, end: "2026-01-01" }).errors.end).toBeTruthy();
+    expect(scheduleDraftToBody({ ...base, times: [""] }).body).toBeNull();
+  });
+});

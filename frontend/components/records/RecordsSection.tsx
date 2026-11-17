@@ -1,155 +1,97 @@
 "use client";
 
-import { Download, FileText, Paperclip, Plus, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
-import {
-  Alert,
-  Button,
-  Card,
-  EmptyState,
-  SelectField,
-  Skeleton,
-  TextField,
-  VerificationBadge,
-} from "@/components/ui/primitives";
-import { api, errorMessage, fieldErrors } from "@/lib/api-client";
-import { useAsync } from "@/lib/hooks";
-import { checkUpload, formatBytes, formatDate, RECORD_TYPES, recordTypeLabel, todayISO } from "@/lib/records";
-import type { HealthRecord, Page, RecordType } from "@/lib/types";
+import { FileText, Paperclip, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AddRecordForm } from "@/components/records/AddRecordForm";
+import { RecordDrawer } from "@/components/records/RecordDrawer";
+import { Alert, Button, Card, EmptyState, SelectField, Skeleton, TextField, VerificationBadge } from "@/components/ui/primitives";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { useToast } from "@/components/ui/Toast";
+import { api, errorMessage } from "@/lib/api-client";
+import { TABLE_QUERY, useAsync, useMediaQuery } from "@/lib/hooks";
+import { filterRecords, formatDate, RECORD_TYPES, recordTypeLabel } from "@/lib/records";
+import type { HealthRecord, Page } from "@/lib/types";
 
 const FILTERS = [{ value: "", label: "All types" }, ...RECORD_TYPES];
+const LIMIT = 100;
 
-const empty = { record_type: "lab_report" as RecordType, title: "", record_date: "", provider_name: "", notes: "" };
+function Row({ r, onOpen }: { r: HealthRecord; onOpen: (r: HealthRecord) => void }) {
+  return (
+    <tr className="border-t border-line">
+      <th scope="row" className="max-w-xs p-3 text-left font-medium text-ink">
+        <span className="flex items-center gap-2">
+          <FileText className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
+          <span className="break-words">{r.title}</span>
+        </span>
+      </th>
+      <td className="p-3 text-sm text-ink">{recordTypeLabel(r.record_type)}</td>
+      <td className="p-3 text-sm text-ink tnum">{formatDate(r.record_date)}</td>
+      <td className="p-3 text-sm text-ink">{r.provider_name ?? <span className="text-ink-soft">Not set</span>}</td>
+      <td className="p-3"><VerificationBadge status={r.verification_status} /></td>
+      <td className="p-3 text-sm text-ink">
+        {r.has_file ? (
+          <span className="inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" aria-hidden /> File attached</span>
+        ) : (
+          <span className="text-ink-soft">No file</span>
+        )}
+      </td>
+      <td className="p-3 text-right">
+        <Button variant="secondary" aria-label={`Open details for ${r.title}`} onClick={() => onOpen(r)}>
+          Details
+        </Button>
+      </td>
+    </tr>
+  );
+}
 
-async function uploadFile(id: string, file: File) {
-  const body = new FormData();
-  body.append("file", file);
-  await api<HealthRecord>(`/records/${id}/file`, { method: "POST", body });
+function RecordCard({ r, onOpen }: { r: HealthRecord; onOpen: (r: HealthRecord) => void }) {
+  return (
+    <li className="space-y-2 p-3">
+      <p className="flex items-center gap-2 font-medium text-ink">
+        <FileText className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
+        <span className="break-words">{r.title}</span>
+      </p>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-ink-soft">
+        <span>{recordTypeLabel(r.record_type)}</span>
+        <span className="tnum">{formatDate(r.record_date)}</span>
+        {r.provider_name && <span>{r.provider_name}</span>}
+        <VerificationBadge status={r.verification_status} />
+        {r.has_file && <span className="inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" aria-hidden /> File attached</span>}
+      </div>
+      {r.notes && <p className="line-clamp-2 text-sm text-ink-soft">{r.notes}</p>}
+      <Button variant="secondary" aria-label={`Open details for ${r.title}`} onClick={() => onOpen(r)}>
+        Details
+      </Button>
+    </li>
+  );
 }
 
 export function RecordsSection() {
-  const [filter, setFilter] = useState("");
-  const list = useAsync(() => api<Page<HealthRecord>>(`/records${filter ? `?record_type=${filter}` : ""}`), [filter]);
-  const [form, setForm] = useState(empty);
-  const [file, setFile] = useState<File | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [notice, setNotice] = useState<{ tone: "danger" | "warning" | "success"; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const replaceInput = useRef<HTMLInputElement>(null);
-  const [replaceFor, setReplaceFor] = useState<string | null>(null);
+  const { show } = useToast();
+  const wide = useMediaQuery(TABLE_QUERY);
+  const [type, setType] = useState("");
+  const [query, setQuery] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: "warning" | "success"; text: string } | null>(null);
+  const list = useAsync(() => api<Page<HealthRecord>>(`/records?limit=${LIMIT}${type ? `&record_type=${type}` : ""}`), [type]);
 
-  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
-
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
-    const next: Record<string, string> = {};
-    if (!form.title.trim()) next.title = "Give this record a title.";
-    const fileProblem = file ? checkUpload(file) : null;
-    if (fileProblem) next.file = fileProblem;
-    setErrors(next);
-    setNotice(null);
-    if (Object.keys(next).length) return;
-
-    setBusy(true);
-    let created: HealthRecord | null = null;
-    try {
-      created = await api<HealthRecord>("/records", {
-        method: "POST",
-        body: {
-          record_type: form.record_type,
-          title: form.title.trim(),
-          record_date: form.record_date || null,
-          provider_name: form.provider_name.trim() || null,
-          notes: form.notes.trim() || null,
-        },
-      });
-      if (file) await uploadFile(created.id, file);
-      setForm(empty);
-      setFile(null);
-      if (fileInput.current) fileInput.current.value = "";
-      setNotice({ tone: "success", text: "Record saved." });
-    } catch (err) {
-      if (created) {
-        // The record exists; only the file failed. Say so rather than implying nothing was saved.
-        setForm(empty);
-        setFile(null);
-        if (fileInput.current) fileInput.current.value = "";
-        setNotice({
-          tone: "warning",
-          text: `The record was saved, but the file wasn’t attached: ${errorMessage(err)} You can attach it from the list below.`,
-        });
-      } else {
-        setErrors(fieldErrors(err));
-        setNotice({ tone: "danger", text: errorMessage(err) });
-      }
-    } finally {
-      setBusy(false);
-      await list.reload();
-    }
-  }
-
-  async function act(fn: () => Promise<void>) {
-    setNotice(null);
-    try {
-      await fn();
-      await list.reload();
-    } catch (err) {
-      setNotice({ tone: "danger", text: errorMessage(err) });
-    }
-  }
-
-  function onReplace(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    const id = replaceFor;
-    e.target.value = "";
-    if (!f || !id) return;
-    const problem = checkUpload(f);
-    if (problem) return setNotice({ tone: "danger", text: problem });
-    void act(() => uploadFile(id, f));
-  }
+  const items = list.data?.items ?? [];
+  const shown = useMemo(() => filterRecords(items, { query, from, to }), [items, query, from, to]);
+  const open = openId ? (items.find((r) => r.id === openId) ?? null) : null;
+  const narrowed = Boolean(query.trim() || from || to);
+  const dateError = from && to && from > to ? "The start date is after the end date." : undefined;
 
   return (
     <div className="space-y-6">
-      <Card aria-labelledby="add-record">
-        <h2 id="add-record" className="mb-4 font-semibold text-navy-900">
-          Add a record
-        </h2>
-        <form onSubmit={(e) => void add(e)} noValidate className="grid gap-4 sm:grid-cols-2">
-          <SelectField
-            label="Type"
-            value={form.record_type}
-            onChange={(e) => set("record_type", e.target.value as RecordType)}
-            options={RECORD_TYPES}
-          />
-          <TextField label="Title" value={form.title} onChange={(e) => set("title", e.target.value)} error={errors.title} maxLength={200} hint="For example: Blood test, March" />
-          <TextField label="Date" optional type="date" max={todayISO()} value={form.record_date} onChange={(e) => set("record_date", e.target.value)} error={errors.record_date} />
-          <TextField label="Doctor or lab" optional value={form.provider_name} onChange={(e) => set("provider_name", e.target.value)} maxLength={200} />
-          <div className="sm:col-span-2">
-            <TextField label="Notes" optional value={form.notes} onChange={(e) => set("notes", e.target.value)} maxLength={2000} />
-          </div>
-          <div className="sm:col-span-2">
-            <TextField
-              ref={fileInput}
-              label="File"
-              optional
-              type="file"
-              accept="application/pdf,image/png,image/jpeg"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              error={errors.file}
-              hint="PDF, PNG or JPEG, up to 10 MB."
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Button type="submit" loading={busy}>
-              <Plus className="h-4 w-4" aria-hidden /> Save record
-            </Button>
-          </div>
-        </form>
-        <p className="mt-3 text-xs text-ink-soft">
-          Use synthetic or your own non-sensitive test files while this app is in its academic build.
-        </p>
-      </Card>
+      <AddRecordForm
+        onSaved={(text, tone) => {
+          if (tone === "success") show(text, "success");
+          else setNotice({ tone, text });
+          void list.reload();
+        }}
+      />
 
       {notice && (
         <Alert tone={notice.tone} title={notice.tone === "success" ? "Done" : undefined}>
@@ -158,104 +100,67 @@ export function RecordsSection() {
       )}
 
       <Card aria-labelledby="your-records">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <h2 id="your-records" className="font-semibold text-navy-900">
-            Your records
-          </h2>
-          <div className="w-52">
-            <SelectField label="Show" value={filter} onChange={(e) => setFilter(e.target.value)} options={FILTERS} />
-          </div>
+        <h2 id="your-records" className="mb-4 text-h3 font-semibold text-navy-900">
+          Your records
+        </h2>
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SelectField label="Type" value={type} onChange={(e) => setType(e.target.value)} options={FILTERS} />
+          <TextField label="Search loaded records" type="search" value={query} onChange={(e) => setQuery(e.target.value)} hint="Title, doctor, notes" />
+          <TextField label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} error={dateError} />
+          <TextField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
-        <input
-          ref={replaceInput}
-          type="file"
-          hidden
-          accept="application/pdf,image/png,image/jpeg"
-          onChange={onReplace}
-          aria-label="Choose a file to attach"
-        />
-        {list.error ? (
-          <Alert tone="danger">{errorMessage(list.error)}</Alert>
+
+        {list.error && !list.data ? (
+          <ErrorState title="Couldn’t load your records" onRetry={() => void list.reload()}>
+            {errorMessage(list.error)}
+          </ErrorState>
         ) : list.loading && !list.data ? (
-          <Skeleton className="h-20 w-full" />
-        ) : list.data && list.data.items.length > 0 ? (
-          <ul className="divide-y divide-line rounded-lg border border-line">
-            {list.data.items.map((r) => (
-              <li key={r.id} className="space-y-2 p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2 font-medium text-ink">
-                      <FileText className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
-                      <span className="break-words">{r.title}</span>
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-soft">
-                      <span>{recordTypeLabel(r.record_type)}</span>
-                      <span>{formatDate(r.record_date)}</span>
-                      {r.provider_name && <span>{r.provider_name}</span>}
-                      <VerificationBadge status={r.verification_status} />
-                    </div>
-                    {r.notes && <p className="mt-1 text-sm text-ink-soft">{r.notes}</p>}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    aria-label={`Remove ${r.title} (entered in error)`}
-                    onClick={() =>
-                      void act(async () => {
-                        await api(`/records/${r.id}`, { method: "PATCH", body: { status: "entered_in_error" } });
-                      })
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden /> Remove
-                  </Button>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  {r.has_file ? (
-                    <>
-                      <a
-                        href={`/api/v1/records/${r.id}/file`}
-                        className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-line px-3 font-medium text-teal-700 hover:bg-mint-100"
-                      >
-                        <Download className="h-4 w-4" aria-hidden />
-                        Download {r.file_name}
-                        {r.file_size !== null && <span className="text-ink-soft">({formatBytes(r.file_size)})</span>}
-                      </a>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setReplaceFor(r.id);
-                          replaceInput.current?.click();
-                        }}
-                      >
-                        Replace file
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => void act(async () => void (await api(`/records/${r.id}/file`, { method: "DELETE" })))}
-                      >
-                        Remove file
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setReplaceFor(r.id);
-                        replaceInput.current?.click();
-                      }}
-                    >
-                      <Paperclip className="h-4 w-4" aria-hidden /> Attach file
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState title={filter ? "No records of this type" : "No records yet"}>
+          <div className="space-y-2" role="status" aria-label="Loading records">
+            <Skeleton variant="row" />
+            <Skeleton variant="row" />
+            <Skeleton variant="row" />
+          </div>
+        ) : items.length === 0 ? (
+          <EmptyState title={type ? "No records of this type" : "No records yet"} icon={Search}>
             Add a report, prescription or scan above. Only you can see them.
           </EmptyState>
+        ) : shown.length === 0 ? (
+          <EmptyState title="No records match" icon={Search}>
+            Nothing among the {items.length} loaded matches{dateError ? "" : " these filters"}. Records with no date are left out when a date range is set.
+          </EmptyState>
+        ) : wide ? (
+          <div className="overflow-x-auto rounded-lg border border-line">
+            <table className="w-full min-w-[40rem] text-left">
+              <caption className="sr-only">Your records</caption>
+              <thead className="bg-canvas text-xs uppercase tracking-wide text-ink-soft">
+                <tr>
+                  <th scope="col" className="p-3">Title</th>
+                  <th scope="col" className="p-3">Type</th>
+                  <th scope="col" className="p-3">Date</th>
+                  <th scope="col" className="p-3">Doctor or lab</th>
+                  <th scope="col" className="p-3">Status</th>
+                  <th scope="col" className="p-3">File</th>
+                  <th scope="col" className="p-3"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>{shown.map((r) => <Row key={r.id} r={r} onOpen={(x) => setOpenId(x.id)} />)}</tbody>
+            </table>
+          </div>
+        ) : (
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {shown.map((r) => <RecordCard key={r.id} r={r} onOpen={(x) => setOpenId(x.id)} />)}
+          </ul>
+        )}
+
+        {list.data && items.length > 0 && (
+          <p role="status" className="mt-3 text-xs text-ink-soft tnum">
+            {narrowed ? `${shown.length} of ${items.length} loaded records shown.` : `${items.length} ${items.length === 1 ? "record" : "records"} shown.`}
+            {list.data.total > items.length && ` Only the newest ${items.length} of ${list.data.total} are loaded; use the type filter to narrow further.`}
+          </p>
         )}
       </Card>
+
+      <RecordDrawer record={open} onClose={() => setOpenId(null)} onChanged={() => list.reload()} />
     </div>
   );
 }

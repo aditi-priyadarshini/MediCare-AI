@@ -1,40 +1,38 @@
 "use client";
 
-import { Check, Clock, Plus, RotateCcw, SkipForward } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Circle, Clock, Plus, RotateCcw, SkipForward, type LucideIcon } from "lucide-react";
 import { useState } from "react";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { StatusBadge, type StatusTone } from "@/components/ui/StatusBadge";
 import { Alert, Button, Card, EmptyState, SelectField, Skeleton } from "@/components/ui/primitives";
 import { ReadAloudButton } from "@/components/voice/ReadAloudButton";
 import { api, errorMessage } from "@/lib/api-client";
-import { cn } from "@/lib/cn";
-import { useAsync } from "@/lib/hooks";
+import type { AsyncState } from "@/lib/hooks";
 import { useT } from "@/lib/i18n";
 import { dayKey, dayLabel, doseState, doseWhen, formatInstant, groupDosesByDay, type DoseState } from "@/lib/medications";
 import { useProfile } from "@/lib/profile-context";
 import { SPEECH_LOCALE } from "@/lib/speech";
 import type { Dose, Medication, Page } from "@/lib/types";
 
-const STATE_STYLE: Record<DoseState, { label: string; cls: string }> = {
-  overdue: { label: "Overdue", cls: "bg-amber-100 text-amber-600" },
-  due: { label: "Due now", cls: "bg-info-100 text-info-700" },
-  upcoming: { label: "Upcoming", cls: "bg-mint-100 text-teal-700" },
-  taken: { label: "Taken", cls: "bg-success-100 text-success-700" },
-  skipped: { label: "Skipped", cls: "bg-line text-ink-soft" },
+/** Icon + words for every state; the colour only reinforces. "Overdue" is caution (amber), never red. */
+const STATE_STYLE: Record<DoseState, { label: string; tone: StatusTone; icon: LucideIcon }> = {
+  overdue: { label: "Overdue", tone: "caution", icon: AlertTriangle },
+  due: { label: "Due now", tone: "info", icon: Clock },
+  upcoming: { label: "Upcoming", tone: "neutral", icon: Circle },
+  taken: { label: "Taken", tone: "success", icon: CheckCircle2 },
+  skipped: { label: "Skipped", tone: "neutral", icon: SkipForward },
 };
 
-const DAY = 86_400_000;
-
-export function DosesCard({ version, onChange }: { version: number; onChange: () => void }) {
+/**
+ * Doses as a timeline, one day at a time. Only the person's own tap on Taken, I took it or Skip
+ * changes a dose; the server decides what is overdue. Reminders never mark anything as taken.
+ */
+export function DosesCard({ list, meds, onChange }: { list: AsyncState<Page<Dose>>; meds: AsyncState<Page<Medication>>; onChange: () => void }) {
   const { profile } = useProfile();
   const { t, language } = useT();
   const voiceOn = profile.accessibility_preferences.voice_enabled;
   const tz = profile.timezone;
   const now = new Date();
-  const list = useAsync(() => {
-    const from = new Date(Date.now() - DAY).toISOString();
-    const to = new Date(Date.now() + 2 * DAY).toISOString();
-    return api<Page<Dose>>(`/doses?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=100`);
-  }, [version]);
-  const meds = useAsync(() => api<Page<Medication>>("/medications?limit=100"), [version]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [extraMed, setExtraMed] = useState("");
@@ -108,27 +106,28 @@ export function DosesCard({ version, onChange }: { version: number; onChange: ()
           {error}
         </Alert>
       )}
-      {list.error ? (
-        <Alert tone="danger">{errorMessage(list.error)}</Alert>
+      {list.error && !list.data ? (
+        <ErrorState title="Couldn’t load your doses" onRetry={() => void list.reload()}>{errorMessage(list.error)}</ErrorState>
       ) : list.loading && !list.data ? (
-        <Skeleton className="h-24 w-full" />
+        <div role="status" aria-label="Loading doses" className="space-y-2"><Skeleton variant="row" /><Skeleton variant="row" /></div>
       ) : groups.length === 0 ? (
-        <EmptyState title="No doses to show">Add a medicine and a schedule below, and your doses will appear here.</EmptyState>
+        <EmptyState title="No doses to show">Add a medicine and a schedule, and your doses will appear here.</EmptyState>
       ) : (
         <div className="space-y-5">
           {groups.map((g) => (
             <section key={g.key} aria-label={dayLabel(g.key, now, tz)}>
               <h3 className="mb-2 text-sm font-semibold text-ink-soft">{dayLabel(g.key, now, tz)}</h3>
-              <ul className="divide-y divide-line rounded-lg border border-line">
+              <ol className="ml-2 space-y-3 border-l-2 border-line pl-4">
                 {g.doses.map((d) => {
                   const state = doseState(d, now);
                   const style = STATE_STYLE[state];
                   const busy = busyId === d.id;
                   return (
-                    <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                    <li key={d.id} className="relative flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3">
+                      <span aria-hidden className="absolute -left-[1.4rem] top-5 h-3 w-3 rounded-full border-2 border-surface bg-teal-700" />
                       <div className="min-w-0">
                         <p className="font-medium text-ink">
-                          <span className="tabular-nums">{formatInstant(doseWhen(d), tz)}</span>
+                          <span className="tnum">{formatInstant(doseWhen(d), tz)}</span>
                           <span className="mx-2 text-ink-soft" aria-hidden>
                             ·
                           </span>
@@ -136,7 +135,7 @@ export function DosesCard({ version, onChange }: { version: number; onChange: ()
                           {d.dose_text && <span className="ml-1 text-ink-soft">{d.dose_text}</span>}
                         </p>
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                          <span className={cn("rounded-full px-2 py-0.5 font-medium", style.cls)}>{style.label}</span>
+                          <StatusBadge tone={style.tone} icon={style.icon}>{style.label}</StatusBadge>
                           {d.scheduled_at === null && <span className="text-ink-soft">Extra dose</span>}
                           {d.status === "taken" && d.taken_at && d.scheduled_at !== null && (
                             <span className="text-ink-soft">at {formatInstant(d.taken_at, tz)}</span>
@@ -183,7 +182,7 @@ export function DosesCard({ version, onChange }: { version: number; onChange: ()
                     </li>
                   );
                 })}
-              </ul>
+              </ol>
             </section>
           ))}
         </div>

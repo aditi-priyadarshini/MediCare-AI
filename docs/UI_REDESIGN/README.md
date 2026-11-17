@@ -38,7 +38,7 @@ After Phase C, phases D1, D2, E1, E2 and F do not depend on each other and can b
 | B | ✔ Done (see handoff in PHASE-B file) | `ui/b-design-system` | | 192 tests pass, build green |
 | C | ✔ Done (see handoff in PHASE-C file) | `ui/c-app-shell` | | 217 tests pass, build green; no live browser check yet |
 | D1 | ✔ Done (see handoff in PHASE-D1 file) | `ui/d1-dashboard-onboarding` | | 280 tests pass, build green; no live browser check yet |
-| D2 | ☐ Not started | `ui/d2-health-data` | | |
+| D2 | ◐ Code written; **lint, typecheck, tests and build NOT run** (no node_modules/network in the authoring sandbox) | `ui/d2-health-data` | | See handoff in PHASE-D2 file |
 | E1 | ☐ Not started | `ui/e1-assistant` | | |
 | E2 | ☐ Not started | `ui/e2-safety-care-sharing` | | |
 | F | ☐ Not started | `ui/f-admin-auth` | | |
@@ -78,3 +78,6 @@ Record decisions here so later phases do not re-litigate them.
 | 13 | The dashboard's "Ask the assistant" examples are plain text, not links that pre-fill a question. The assistant page has no deep-link input, and Phase D1 does not change it. | Clicking an example that does not ask it would mislead. E1 may add a `?q=` input and then make them links. | D1 |
 | 14 | `ExperienceProvider` now exposes `ready` (false until the saved reading mode has been read on this device). The dashboard waits for it so Easy-read users do not trigger the Standard-only requests for one render. | Avoids wasted calls and a flash of the full layout. | D1 |
 | 15 | "Upcoming" shows appointment *requests* only (status text from `STATUS_BADGE`); it is hidden while loading and when nothing is open and in the future. | No confirmed-booking claims; no layout jump. | D1 |
+| 16 | `/labs/trend` mixes units for one test name (it takes the unit from the newest result). The Labs screen charts only points whose own result has the same unit (`comparableTrend`) and says how many were left out. Backend fix is a separate task. | Safety invariant: incomparable units are never graphed together. No backend change in this track. | D2 |
+| 17 | Medication cards show next dose (from the loaded 2-day dose window) and supply status (from `/medications/alerts` only). Schedule summaries are in the detail drawer, because only a per-medicine schedules endpoint exists. | No N+1 requests; no invented status. | D2 |
+| 18 | Out-of-stock alerts are amber (caution); only expired is red. | Red is reserved for serious safety. | D2 |

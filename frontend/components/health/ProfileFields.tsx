@@ -29,15 +29,10 @@ export function profileProblems(d: Draft): Record<string, string> {
 
 const num = (v: string) => (v === "" ? null : Number(v));
 
-export function PersonalFields({
-  draft,
-  setDraft,
-  errors,
-}: {
-  draft: Draft;
-  setDraft: SetDraft;
-  errors: Record<string, string>;
-}) {
+type FieldsProps = { draft: Draft; setDraft: SetDraft; errors: Record<string, string> };
+
+/** Name and date of birth. */
+export function IdentityFields({ draft, setDraft, errors }: FieldsProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2">
@@ -57,6 +52,14 @@ export function PersonalFields({
         onChange={(e) => setDraft((d) => ({ ...d, date_of_birth: e.target.value || null }))}
         error={errors.date_of_birth}
       />
+    </div>
+  );
+}
+
+/** Blood group, height and weight. */
+export function BodyFields({ draft, setDraft, errors }: FieldsProps) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
       <SelectField
         label="Blood group"
         optional
@@ -65,6 +68,7 @@ export function PersonalFields({
         options={[{ value: "", label: "Not set" }, ...BLOOD.map((b) => ({ value: b, label: b }))]}
         hint="Saved as patient reported until a clinician confirms it."
       />
+      <span className="hidden sm:block" aria-hidden />
       <TextField
         label="Height (cm)"
         optional
@@ -85,6 +89,16 @@ export function PersonalFields({
         onChange={(e) => setDraft((d) => ({ ...d, weight_kg: num(e.target.value) }))}
         error={errors.weight_kg}
       />
+    </div>
+  );
+}
+
+/** Everything in one block: used by onboarding, where it is a single step. */
+export function PersonalFields(props: FieldsProps) {
+  return (
+    <div className="space-y-4">
+      <IdentityFields {...props} />
+      <BodyFields {...props} />
     </div>
   );
 }

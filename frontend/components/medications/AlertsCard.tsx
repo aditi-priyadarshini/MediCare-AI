@@ -1,26 +1,31 @@
 "use client";
 
 import { BellRing, CheckCheck } from "lucide-react";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Alert, Button, Card } from "@/components/ui/primitives";
 import { api, errorMessage } from "@/lib/api-client";
-import { useAsync } from "@/lib/hooks";
-import { ALERT_TONE, alertText } from "@/lib/medications";
+import { useAsync, type AsyncState } from "@/lib/hooks";
+import { ALERT_TITLE, ALERT_TONE, alertText } from "@/lib/medications";
 import { useProfile } from "@/lib/profile-context";
 import type { AppNotification, MedAlert, Page } from "@/lib/types";
 
 /** Refill and expiry notices computed from your supplies. Always check the pack itself. */
-export function AlertsCard({ version }: { version: number }) {
-  const alerts = useAsync(() => api<MedAlert[]>("/medications/alerts"), [version]);
-  if (alerts.error || !alerts.data || alerts.data.length === 0) {
-    return alerts.error ? <Alert tone="danger">{errorMessage(alerts.error)}</Alert> : null;
+export function AlertsCard({ alerts }: { alerts: AsyncState<MedAlert[]> }) {
+  if (alerts.error && !alerts.data) {
+    return (
+      <ErrorState title="Couldn’t load supply alerts" onRetry={() => void alerts.reload()}>
+        {errorMessage(alerts.error)}
+      </ErrorState>
+    );
   }
+  if (!alerts.data || alerts.data.length === 0) return null;
   return (
     <Card aria-labelledby="alerts-heading" className="space-y-2">
-      <h2 id="alerts-heading" className="font-semibold text-navy-900">
+      <h2 id="alerts-heading" className="text-h3 font-semibold text-navy-900">
         Supply alerts
       </h2>
       {alerts.data.map((a) => (
-        <Alert key={`${a.kind}-${a.supply_id ?? a.medication_id}`} tone={ALERT_TONE[a.kind]} title={a.kind === "refill_soon" ? "Running low" : a.kind === "out_of_stock" ? "Out of stock" : a.kind === "expiring_soon" ? "Expiring soon" : "Expired"}>
+        <Alert key={`${a.kind}-${a.supply_id ?? a.medication_id}`} tone={ALERT_TONE[a.kind]} title={ALERT_TITLE[a.kind]}>
           {alertText(a)}
         </Alert>
       ))}

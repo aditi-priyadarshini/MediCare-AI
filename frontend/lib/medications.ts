@@ -1,4 +1,5 @@
-import type { AlertKind, Dose, MedAlert, Medication, Schedule } from "./types";
+import { parseNumber } from "./records";
+import type { AlertKind, Dose, MedAlert, Medication, MedicationStatus, Schedule } from "./types";
 
 /** Monday = 0, matching the API. */
 export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -112,7 +113,7 @@ export function alertText(a: MedAlert): string {
 
 export const ALERT_TONE: Record<AlertKind, "warning" | "danger"> = {
   refill_soon: "warning",
-  out_of_stock: "danger",
+  out_of_stock: "warning",
   expiring_soon: "warning",
   expired: "danger",
 };
@@ -122,3 +123,80 @@ export function medicationTitle(m: Pick<Medication, "display_name" | "strength_t
 }
 
 export const BASIS_LABEL = { prescribed: "Prescribed", self_reported: "Self-reported" } as const;
+
+/* ------------------------------------------------------------------ list tabs */
+export type MedTab = "active" | "paused" | "completed";
+
+/** "Completed" is a medicine marked stopped. Entries removed in error never appear. */
+export const MED_TAB_STATUS: Record<MedTab, MedicationStatus> = { active: "active", paused: "paused", completed: "stopped" };
+
+export function medsForTab<T extends Pick<Medication, "status">>(items: T[], tab: MedTab): T[] {
+  return items.filter((m) => m.status === MED_TAB_STATUS[tab]);
+}
+
+/**
+ * The earliest dose of this medicine that is still waiting, taken from the doses already loaded
+ * (an overdue one counts and comes first). Null when none is loaded; the window is short, so this
+ * says nothing about later days.
+ */
+export function nextPendingDose(doses: Dose[], medicationId: string): Dose | null {
+  const waiting = doses
+    .filter((d) => d.medication_id === medicationId && d.status === "pending" && d.scheduled_at !== null)
+    .sort((a, b) => Date.parse(a.scheduled_at!) - Date.parse(b.scheduled_at!));
+  return waiting[0] ?? null;
+}
+
+/** Supply alerts for one medicine, straight from /medications/alerts. */
+export const alertsFor = (alerts: MedAlert[], medicationId: string): MedAlert[] => alerts.filter((a) => a.medication_id === medicationId);
+
+export const ALERT_TITLE: Record<AlertKind, string> = {
+  refill_soon: "Running low",
+  out_of_stock: "Out of stock",
+  expiring_soon: "Expiring soon",
+  expired: "Expired",
+};
+
+/* ------------------------------------------------------------------ schedule form */
+export type Repeat = "daily" | "weekdays" | "interval";
+
+export interface ScheduleDraft {
+  times: string[];
+  repeat: Repeat;
+  days: number[];
+  every: string;
+  start: string;
+  end: string;
+}
+
+export const defaultScheduleDraft = (start: string): ScheduleDraft => ({ times: ["08:00"], repeat: "daily", days: [], every: "2", start, end: "" });
+
+export interface ScheduleBody {
+  times: string[];
+  days_of_week: number[] | null;
+  every_n_days: number;
+  start_date: string;
+  end_date: string | null;
+}
+
+/** Validates a schedule draft. `body` is set only when there are no problems. */
+export function scheduleDraftToBody(d: ScheduleDraft): { errors: Record<string, string>; body: ScheduleBody | null } {
+  const errors: Record<string, string> = {};
+  const t = normaliseTimes(d.times);
+  if (t.error) errors.times = t.error;
+  if (d.repeat === "weekdays" && d.days.length === 0) errors.days = "Choose at least one day.";
+  const n = parseNumber(d.every);
+  if (d.repeat === "interval" && (n === null || !Number.isInteger(n) || n < 2 || n > 365)) errors.every = "Enter a whole number from 2 to 365.";
+  if (!d.start) errors.start = "Choose a start date.";
+  if (d.end && d.start && d.end < d.start) errors.end = "The end date can’t be before the start date.";
+  if (Object.keys(errors).length) return { errors, body: null };
+  return {
+    errors,
+    body: {
+      times: t.times,
+      days_of_week: d.repeat === "weekdays" ? [...d.days].sort() : null,
+      every_n_days: d.repeat === "interval" ? (n as number) : 1,
+      start_date: d.start,
+      end_date: d.end || null,
+    },
+  };
+}

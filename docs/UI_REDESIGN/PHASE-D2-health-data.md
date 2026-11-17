@@ -47,8 +47,15 @@ Update or extend `records.test.tsx` and `medications.test.ts`; add tests for lab
 - Mobile 320px no overflow on all four screens.
 - Lint, typecheck, test, build pass.
 
-## Handoff
-Components added, endpoints touched, any behaviour deliberately left unchanged.
+## Handoff (written, NOT yet verified)
+**Verification status:** syntax-checked only (TypeScript transpile of every source file: 0 errors). `npm run lint`, `typecheck`, `test` and `build` were **not run**; the authoring sandbox had no `node_modules` and no network. Run all four before merging and fix whatever they find. No browser check was done (320px overflow, drawers, focus, screen reader).
+**Profile:** `/profile` now has a sticky section nav (desktop) and accordion sections (phones, `useMediaQuery`), per-section save (identity, body, preferences; each sends the saved profile with only its fields replaced via the existing `PUT /profile`), completeness tile (`CompletionTile`), read-only blood-group verification, confirmation before removing conditions/allergies/contacts, error states with retry. New: `ProfileSection`, `ProfileNav`, `ProfileForms`; `PersonalFields` split into `IdentityFields` + `BodyFields` (onboarding still uses `PersonalFields`). 22 `prof.*` i18n keys (hi/or machine-generated, unreviewed).
+**Records:** `FileDropzone` (accepted types and 10 MB limit up front, keyboard-operable native input, indeterminate "Uploading…" status; the API client gives no byte progress), `AddRecordForm`, list as table/cards with type filter, text search and date range over the loaded items (limit 100, says when more exist), `RecordDrawer` (details, verification, download link unchanged, **new** edit via existing `PATCH /records/{id}` with a notice that verification resets, replace/remove file, remove as entered in error with confirmation).
+**Labs:** `LabResultCard`/`LabResultsTable`/`FlagBadge` ("Below/Above report range", amber + icon, never red/green), By test / All results views, edit via existing `PATCH /labs/{id}` (new in the UI), confirmation on remove, chart only for comparable points (decision 16) with "No comparable history yet." for one point, text summary above the chart, Easy-read step-by-step `LabForm`.
+**Medications:** Active/Paused/Completed tabs (Completed = stopped), `MedicationCard`/`MedicationsTable`, detail drawer (pause/resume/stop with confirmation, About with instructions apart from your note, schedules, supplies), `AddMedicationFlow` (4 steps, reminders step with time zone; as-needed skips it), doses as a timeline with icon+text badges, alerts card with retry. `MedicationDetails` split into `Schedules`, `Supplies`, `ScheduleFields`. Page fetches medicines, doses and alerts once and shares them.
+**Endpoints:** all existing; no backend change. Newly used from the UI: `PATCH /records/{id}` and `PATCH /labs/{id}` content edits.
+**Not done / open:** English-only strings inside the Records, Labs and Medications bodies (as before); Profile sub-forms for conditions/allergies/contacts are unchanged apart from confirmation; no dedicated component tests for drawers, the add flow or the profile sections (only lib tests were added: filterRecords, comparableTrend, lab form, medication list helpers, schedule draft); `tests/records.test.tsx` and `medications.test.ts` were extended, not run.
+
 
 ## Paste-ready prompt
 ```

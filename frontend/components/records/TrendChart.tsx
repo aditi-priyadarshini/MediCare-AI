@@ -12,8 +12,17 @@ export function TrendChart({ trend }: { trend: LabTrend }) {
   const first = points[0]!;
   const last = points[points.length - 1]!;
 
+  const latestFlag = FLAG_LABEL[last.flag];
+
   return (
     <div className="space-y-3">
+      <p className="text-sm text-ink">
+        <span className="font-medium">{test_name}:</span>{" "}
+        <span className="tnum">
+          {points.length} result{points.length === 1 ? "" : "s"}, {formatDate(first.observed_on)} to {formatDate(last.observed_on)}. Latest {last.value}
+          {unit ? ` ${unit}` : ""} ({latestFlag.toLowerCase()}).
+        </span>
+      </p>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         role="img"
