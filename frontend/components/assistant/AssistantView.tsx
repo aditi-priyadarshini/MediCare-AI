@@ -205,7 +205,7 @@ export function AssistantView() {
             {t("assistant.status.none.body")}
           </Alert>
         )}
-        {status.error && !status.data && (
+        {status.error != null && !status.data && (
           <Alert tone="warning" title={t("assistant.status.error")} />
         )}
         {failure && (
