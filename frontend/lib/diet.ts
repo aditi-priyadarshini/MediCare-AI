@@ -126,3 +126,40 @@ export function visibleFlags(flags: DietFlag[]): DietFlag[] {
 export function blocked(flags: DietFlag[]): DietFlag | undefined {
   return flags.find((f) => f.severity === "block");
 }
+
+/* ------------------------------------------------------------ Plan days & dates */
+
+/** Calendar day (YYYY-MM-DD) of an instant in a time zone (the browser's when none is given). */
+export function dayKey(d: Date, timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+
+const utcDay = (key: string) => {
+  const [y, m, d] = key.split("-").map(Number);
+  return Date.UTC(y!, m! - 1, d!);
+};
+
+/**
+ * Which day of the plan "now" is: 1 on the day the plan was made, 2 the next day, and so on.
+ * It can be above the number of days in the plan (the plan has ended).
+ */
+export function planDayNumber(createdAt: string, now: Date, timeZone?: string): number {
+  const start = utcDay(dayKey(new Date(createdAt), timeZone));
+  const today = utcDay(dayKey(now, timeZone));
+  return Math.round((today - start) / 86_400_000) + 1;
+}
+
+/** Weekday and date of plan day `day`, for labels, e.g. { weekday: "Tue", date: "17 Nov" }. */
+export function planDayLabel(createdAt: string, day: number, timeZone?: string): { weekday: string; date: string; long: string } {
+  const start = utcDay(dayKey(new Date(createdAt), timeZone));
+  const d = new Date(start + (day - 1) * 86_400_000);
+  const fmt = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-IN", { timeZone: "UTC", ...o }).format(d);
+  return {
+    weekday: fmt({ weekday: "short" }),
+    date: fmt({ day: "numeric", month: "short" }),
+    long: fmt({ weekday: "long", day: "numeric", month: "long" }),
+  };
+}
+
+/** Short text for a diet pattern: "Vegetarian (no egg, fish or meat)" becomes "Vegetarian". */
+export const shortLabel = (label: string) => label.split(" (")[0]!;

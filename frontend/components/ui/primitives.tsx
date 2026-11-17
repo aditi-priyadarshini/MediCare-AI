@@ -39,6 +39,28 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   fullWidth?: boolean;
 }
 
+/** The Button look as a class string, so a link (LinkButton) can match a button exactly. */
+export function buttonClass({
+  variant = "primary",
+  size = "md",
+  fullWidth,
+  className,
+}: {
+  variant?: Variant;
+  size?: Size;
+  fullWidth?: boolean;
+  className?: string;
+}) {
+  return cn(
+    "inline-flex items-center justify-center gap-2 rounded-lg font-semibold",
+    "transition-[colors,transform] duration-fast disabled:cursor-not-allowed",
+    SIZES[size],
+    VARIANTS[variant],
+    fullWidth && "w-full",
+    className,
+  );
+}
+
 export function Button({
   variant = "primary",
   size = "md",
@@ -55,14 +77,7 @@ export function Button({
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-semibold",
-        "transition-[colors,transform] duration-fast disabled:cursor-not-allowed",
-        SIZES[size],
-        VARIANTS[variant],
-        fullWidth && "w-full",
-        className,
-      )}
+      className={buttonClass({ variant, size, fullWidth, className })}
       {...rest}
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}

@@ -238,7 +238,8 @@ export const en = {
   "dash.ai.scope": "The assistant only uses the kinds of record you switch on in each chat, and only with your permission. Nothing has been shared with it yet.",
   "dash.ai.consentOn": "Permission to use your records: given",
   "dash.ai.consentOff": "Permission to use your records: not given",
-  "dash.ai.consentHint": "You can change this in your profile.",
+  "dash.ai.consentHint": "You can change this in your settings.",
+  "dash.ai.privacy": "Privacy settings",
   "dash.ai.open": "Open the assistant",
   "dash.ai.notice": "The assistant is not a substitute for professional medical advice.",
   "dash.qa.title": "Quick actions",
@@ -346,7 +347,7 @@ export const en = {
   "assistant.ctx.title": "Records the assistant may use in this chat",
   "assistant.ctx.consentTitle": "Your records are off-limits for now",
   "assistant.ctx.consentBody":
-    "To switch any of these on, first allow the assistant to use your records in your profile. Until then it can only use general medicine reference notes.",
+    "To switch any of these on, first allow the assistant to use your records in Settings. Until then it can only use general medicine reference notes.",
   "assistant.ctx.consentLink": "Open privacy settings",
   "assistant.ctx.saving": "Saving…",
   "assistant.using": "Using: {list}",

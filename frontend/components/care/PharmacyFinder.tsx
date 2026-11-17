@@ -140,9 +140,9 @@ export function PharmacyFinder() {
           {result.items.length === 0 && (
             <EmptyState title="No pharmacies found">Try a different name, a wider area, or remove the location.</EmptyState>
           )}
-          <ul className="space-y-3">
+          <ul className="grid gap-4 xl:grid-cols-2">
             {result.items.map((p) => (
-              <li key={p.id} className="space-y-2 rounded-lg border border-line p-4">
+              <li key={p.id} className="space-y-2 self-start rounded-lg border border-line p-4">
                 <div>
                   <h3 className="font-semibold text-ink">{p.name}</h3>
                   <p className="text-sm text-ink-soft">

@@ -42,18 +42,10 @@ export default function DashboardPage() {
 
   return (
     <div className="dash-root mx-auto min-w-0 max-w-[1200px] space-y-6">
-      <div className="grid items-start gap-4 lg:grid-cols-12">
-        <PageHeader
-          className="mb-0 lg:col-span-8"
-          title={t("dash.hello", { name: firstName(profile.display_name) })}
-          description={context}
-        />
-        {standard && (
-          <div className="lg:col-span-4">
-            <CompletionTile />
-          </div>
-        )}
-      </div>
+      <PageHeader className="mb-0" title={t("dash.hello", { name: firstName(profile.display_name) })} description={context} />
+
+      {/* A slim full-width strip, so it no longer leaves a hole beside the greeting. */}
+      {standard && <CompletionTile />}
 
       <div className="grid gap-4 lg:grid-cols-12">
         <div className={easy ? "lg:col-span-7" : "lg:col-span-8"}>

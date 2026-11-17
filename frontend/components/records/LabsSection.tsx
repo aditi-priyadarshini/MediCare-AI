@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, Plus } from "lucide-react";
 import { useState } from "react";
 import { LabForm } from "@/components/records/LabForm";
 import { LabResultCard, LabResultsTable } from "@/components/records/LabResultCard";
@@ -9,7 +9,7 @@ import { ConfirmationDialog } from "@/components/ui/Dialog";
 import { Drawer } from "@/components/ui/Drawer";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useToast } from "@/components/ui/Toast";
-import { Alert, Card, EmptyState, Skeleton } from "@/components/ui/primitives";
+import { Alert, Button, Card, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { api, errorMessage } from "@/lib/api-client";
 import { TABLE_QUERY, useAsync, useMediaQuery } from "@/lib/hooks";
 import { comparableTrend, FLAG_LABEL, formatDate, formatLabValue, NO_COMPARABLE_HISTORY } from "@/lib/records";
@@ -36,6 +36,7 @@ export function LabsSection() {
   const [view, setView] = useState<View>("test");
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<LabResult | null>(null);
+  const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<LabResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -85,18 +86,23 @@ export function LabsSection() {
         interpret results or tell you whether a value is healthy. Talk to your doctor about what yours mean.
       </Alert>
 
-      <Card aria-labelledby="add-lab">
-        <h2 id="add-lab" className="mb-4 text-h3 font-semibold text-navy-900">
-          Add a result
-        </h2>
+      <div className="flex justify-end">
+        <Button onClick={() => setAdding(true)}>
+          <Plus className="h-4 w-4" aria-hidden /> Add result
+        </Button>
+      </div>
+
+      <Drawer open={adding} onClose={() => setAdding(false)} title="Add a result" closeLabel="Close add result" className="sm:w-[28rem]">
         <LabForm
+          onCancel={() => setAdding(false)}
           onSaved={async (f) => {
+            setAdding(false);
             setSelected(f.test_name.trim());
             show("Result saved.", "success");
             await reloadAll();
           }}
         />
-      </Card>
+      </Drawer>
 
       {notice && <Alert tone="danger">{notice}</Alert>}
 

@@ -2,20 +2,10 @@
 
 import { useState } from "react";
 import { LocationButton, Pager, PlaceActions, SourceLine, type Coords } from "@/components/care/Shared";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { Alert, Button, Card, EmptyState, SelectField, TextField } from "@/components/ui/primitives";
-import { api, errorMessage, fieldErrors } from "@/lib/api-client";
-import {
-  CREDENTIAL_BADGE,
-  CREDENTIAL_TONE,
-  WINDOWS,
-  bookingRange,
-  capitalise,
-  queryString,
-  type Appointment,
-  type CarePage,
-  type Doctor,
-  type Window,
-} from "@/lib/care";
+import { api, errorMessage } from "@/lib/api-client";
+import { CREDENTIAL_BADGE, CREDENTIAL_TONE, capitalise, queryString, type CarePage, type Doctor } from "@/lib/care";
 import { useAsync } from "@/lib/hooks";
 
 const BADGE: Record<string, string> = {
@@ -24,88 +14,7 @@ const BADGE: Record<string, string> = {
   warning: "bg-amber-100 text-amber-600",
 };
 
-function BookingForm({
-  doctor,
-  onDone,
-  onClose,
-}: {
-  doctor: Doctor;
-  onDone: (a: Appointment) => void;
-  onClose: () => void;
-}) {
-  const range = bookingRange();
-  const [date, setDate] = useState("");
-  const [window, setWindow] = useState<Window>("any");
-  const [reason, setReason] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [failure, setFailure] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!date) return setErrors({ preferred_date: "Choose a day." });
-    setErrors({});
-    setBusy(true);
-    setFailure(null);
-    try {
-      const made = await api<Appointment>("/appointments", {
-        method: "POST",
-        body: { doctor_id: doctor.id, preferred_date: date, preferred_window: window, reason: reason.trim() || undefined },
-      });
-      onDone(made);
-    } catch (err) {
-      setErrors(fieldErrors(err));
-      setFailure(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-3 rounded-lg border border-line bg-mint-100 p-4" aria-label={`Request an appointment with ${doctor.display_name}`}>
-      <Alert tone={doctor.booking_mode === "provider" ? "info" : "warning"} title="Before you send">
-        {doctor.appointment_note}
-      </Alert>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <TextField
-          label="Preferred day"
-          type="date"
-          min={range.min}
-          max={range.max}
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          error={errors.preferred_date}
-        />
-        <SelectField
-          label="Preferred time"
-          value={window}
-          onChange={(e) => setWindow(e.target.value as Window)}
-          options={WINDOWS}
-        />
-      </div>
-      <TextField
-        label="Reason for the visit"
-        hint="Optional. Only you can see this. It is not shared with the clinic."
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        maxLength={500}
-        error={errors.reason}
-        optional
-      />
-      {failure && <Alert tone="danger" title="Could not save the request">{failure}</Alert>}
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" loading={busy}>
-          {doctor.booking_mode === "provider" ? "Send request" : "Save request"}
-        </Button>
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-export function DoctorFinder({ onBooked }: { onBooked: () => void }) {
+export function DoctorFinder() {
   const [q, setQ] = useState("");
   const [specialty, setSpecialty] = useState("");
   const [city, setCity] = useState("");
@@ -115,8 +24,6 @@ export function DoctorFinder({ onBooked }: { onBooked: () => void }) {
   const [result, setResult] = useState<CarePage<Doctor> | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [booking, setBooking] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<Appointment | null>(null);
   const specialties = useAsync(() => api<string[]>("/doctors/specialties"), []);
 
   async function search(e?: React.FormEvent, offset = 0) {
@@ -185,11 +92,6 @@ export function DoctorFinder({ onBooked }: { onBooked: () => void }) {
       </form>
 
       {failure && <Alert tone="danger" title="Search failed">{failure}</Alert>}
-      {confirmation && (
-        <Alert tone={confirmation.status === "sent" ? "info" : "warning"} title="Request recorded">
-          {confirmation.status_text} You can see it under Appointments.
-        </Alert>
-      )}
 
       {result && (
         <div className="space-y-3" aria-live="polite">
@@ -201,9 +103,9 @@ export function DoctorFinder({ onBooked }: { onBooked: () => void }) {
           {result.items.length === 0 && (
             <EmptyState title="No doctors found">Try fewer filters, or turn off the verified-only filter.</EmptyState>
           )}
-          <ul className="space-y-3">
+          <ul className="grid gap-4 xl:grid-cols-2">
             {result.items.map((d) => (
-              <li key={d.id} className="space-y-2 rounded-lg border border-line p-4">
+              <li key={d.id} className="space-y-2 self-start rounded-lg border border-line p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <h3 className="font-semibold text-ink">{d.display_name}</h3>
@@ -234,21 +136,9 @@ export function DoctorFinder({ onBooked }: { onBooked: () => void }) {
                 )}
                 <PlaceActions phone={d.phone} latitude={d.latitude} longitude={d.longitude} distanceKm={d.distance_km} />
                 <p className="text-sm text-ink-soft">{d.appointment_note}</p>
-                {booking === d.id ? (
-                  <BookingForm
-                    doctor={d}
-                    onClose={() => setBooking(null)}
-                    onDone={(a) => {
-                      setBooking(null);
-                      setConfirmation(a);
-                      onBooked();
-                    }}
-                  />
-                ) : (
-                  <Button variant="secondary" onClick={() => { setConfirmation(null); setBooking(d.id); }}>
-                    Request an appointment
-                  </Button>
-                )}
+                <LinkButton href={`/care/book/${d.id}`} variant="secondary">
+                  Request an appointment
+                </LinkButton>
                 <SourceLine source={d.source} freshness={d.freshness} />
               </li>
             ))}

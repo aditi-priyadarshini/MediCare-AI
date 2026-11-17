@@ -10,3 +10,5 @@ export * from "./Menu";
 export * from "./AccessibleFormField";
 export * from "./Drawer";
 export * from "./Popover";
+export * from "./LinkButton";
+export * from "./FormPage";

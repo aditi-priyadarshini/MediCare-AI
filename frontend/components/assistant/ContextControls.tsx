@@ -34,7 +34,7 @@ export function ContextControls({ context, consentGranted, busy, locked, onChang
       {!consentGranted && (
         <Alert tone="info" title={t("assistant.ctx.consentTitle")}>
           <p>{t("assistant.ctx.consentBody")}</p>
-          <Link href="/profile#privacy" className="mt-1 inline-flex min-h-[44px] items-center font-medium underline">
+          <Link href="/settings#privacy" className="mt-1 inline-flex min-h-[44px] items-center font-medium underline">
             {t("assistant.ctx.consentLink")}
           </Link>
         </Alert>

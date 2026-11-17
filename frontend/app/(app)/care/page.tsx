@@ -1,56 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import { CalendarClock, Pill, Stethoscope, type LucideIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { AppointmentsPanel } from "@/components/care/AppointmentsPanel";
 import { DoctorFinder } from "@/components/care/DoctorFinder";
 import { PharmacyFinder } from "@/components/care/PharmacyFinder";
-import { Alert } from "@/components/ui/primitives";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Alert, PageLoading } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 
-const TABS = [
-  { id: "pharmacies", label: "Pharmacies" },
-  { id: "doctors", label: "Doctors" },
-  { id: "appointments", label: "Appointments" },
-] as const;
+const TABS: Array<{ id: "pharmacies" | "doctors" | "appointments"; label: string; icon: LucideIcon }> = [
+  { id: "pharmacies", label: "Pharmacies", icon: Pill },
+  { id: "doctors", label: "Doctors", icon: Stethoscope },
+  { id: "appointments", label: "Appointments", icon: CalendarClock },
+];
 type Tab = (typeof TABS)[number]["id"];
 
-export default function CarePage() {
-  const [tab, setTab] = useState<Tab>("pharmacies");
-  const [version, setVersion] = useState(0);
+function CareTabs() {
+  const wanted = useSearchParams()?.get("tab");
+  const [tab, setTab] = useState<Tab>(TABS.some((t) => t.id === wanted) ? (wanted as Tab) : "pharmacies");
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-navy-900">Find care</h1>
-        <p className="mt-1 text-ink-soft">Look up pharmacies and doctors, and keep track of appointment requests.</p>
-      </div>
-      <Alert tone="info" title="Check before you travel">
-        Listings can be out of date. Every entry shows where it came from and how old it is. This is not an emergency
-        service: in an emergency, call 112.
-      </Alert>
-      <div role="tablist" aria-label="Care" className="flex gap-1 border-b border-line">
-        {TABS.map((t) => (
+    <>
+      <div role="tablist" aria-label="Care" className="flex gap-2 overflow-x-auto border-b border-line">
+        {TABS.map(({ id, label, icon: Icon }) => (
           <button
-            key={t.id}
+            key={id}
+            type="button"
             role="tab"
-            id={`tab-${t.id}`}
-            aria-selected={tab === t.id}
-            aria-controls={`panel-${t.id}`}
-            onClick={() => setTab(t.id)}
+            id={`tab-${id}`}
+            aria-selected={tab === id}
+            aria-controls={`panel-${id}`}
+            onClick={() => setTab(id)}
             className={cn(
-              "min-h-[44px] border-b-2 px-4 text-sm font-semibold",
-              tab === t.id ? "border-teal-700 text-teal-700" : "border-transparent text-ink-soft hover:text-ink",
+              "inline-flex min-h-[48px] items-center gap-2 border-b-2 px-4 text-sm font-semibold",
+              tab === id ? "border-teal-700 text-teal-700" : "border-transparent text-ink-soft hover:text-ink",
             )}
           >
-            {t.label}
+            <Icon className="h-4 w-4" aria-hidden /> {label}
           </button>
         ))}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "pharmacies" && <PharmacyFinder />}
-        {tab === "doctors" && <DoctorFinder onBooked={() => setVersion((v) => v + 1)} />}
-        {tab === "appointments" && <AppointmentsPanel version={version} />}
+        {tab === "doctors" && <DoctorFinder />}
+        {tab === "appointments" && <AppointmentsPanel version={0} />}
       </div>
+    </>
+  );
+}
+
+export default function CarePage() {
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        className="mb-0"
+        title="Find care"
+        description="Look up pharmacies and doctors, and keep track of appointment requests."
+      />
+      <Alert tone="info" title="Check before you travel">
+        Listings can be out of date. Every entry shows where it came from and how old it is. This is not an emergency service: in an
+        emergency, call 112.
+      </Alert>
+      {/* CareTabs reads ?tab= so a finished booking can land on Appointments; Next needs a Suspense boundary for that. */}
+      <Suspense fallback={<PageLoading label="Loading" />}>
+        <CareTabs />
+      </Suspense>
     </div>
   );
 }

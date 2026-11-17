@@ -2,9 +2,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppointmentsPanel } from "@/components/care/AppointmentsPanel";
+import { BookingForm } from "@/components/care/BookingForm";
 import { DoctorFinder } from "@/components/care/DoctorFinder";
 import { PharmacyFinder } from "@/components/care/PharmacyFinder";
-import { PlansCard } from "@/components/diet/PlansCard";
+import { DietPlanner } from "@/components/diet/DietPlanner";
 import { ApiError } from "@/lib/api-client";
 
 const api = vi.fn();
@@ -79,7 +80,7 @@ describe("DoctorFinder", () => {
   it("labels credentials honestly and explains what a request does", async () => {
     api.mockResolvedValueOnce(["general medicine"]); // specialties
     api.mockResolvedValueOnce(page([doctor()], "Not ranked."));
-    render(<DoctorFinder onBooked={() => {}} />);
+    render(<DoctorFinder />);
     await userEvent.click(screen.getByRole("button", { name: "Search doctors" }));
     const card = (await screen.findByText("Dr Amy")).closest("li")!;
     expect(within(card).getByText("Credentials not verified")).toBeInTheDocument();
@@ -96,30 +97,37 @@ describe("DoctorFinder", () => {
         doctor({ id: "d3", display_name: "Dr Listed", credential_status: "source_listed", credential_label: "Listed by the directory source. Not independently verified." }),
       ]),
     );
-    render(<DoctorFinder onBooked={() => {}} />);
+    render(<DoctorFinder />);
     await userEvent.click(screen.getByRole("button", { name: "Search doctors" }));
     await screen.findByText("Dr Ver");
     expect(screen.getByText("Credentials verified")).toBeInTheDocument();
     expect(screen.getByText("Credentials listed, not verified")).toBeInTheDocument();
   });
 
-  it("records a request and tells the person it was not sent", async () => {
-    const onBooked = vi.fn();
+  it("opens the request on its own page instead of an inline form", async () => {
     api.mockResolvedValueOnce([]);
     api.mockResolvedValueOnce(page([doctor()]));
-    render(<DoctorFinder onBooked={onBooked} />);
+    render(<DoctorFinder />);
     await userEvent.click(screen.getByRole("button", { name: "Search doctors" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Request an appointment" }));
+    const link = await screen.findByRole("link", { name: "Request an appointment" });
+    expect(link).toHaveAttribute("href", "/care/book/d1");
+    expect(screen.queryByLabelText("Preferred day")).not.toBeInTheDocument();
+  });
+});
+
+describe("BookingForm", () => {
+  it("records a request and tells the person it was not sent", async () => {
+    const onDone = vi.fn();
+    render(<BookingForm doctor={doctor() as never} onDone={onDone} onClose={() => {}} />);
     await userEvent.click(screen.getByRole("button", { name: "Save request" }));
     expect(await screen.findByText("Choose a day.")).toBeInTheDocument();
-    expect(api).toHaveBeenCalledTimes(2); // nothing was posted without a day
+    expect(api).not.toHaveBeenCalled(); // nothing was posted without a day
 
     api.mockResolvedValueOnce({ id: "a1", status: "request_only", status_text: "Saved in this app only. It has NOT been sent to the clinic." });
-    const day = screen.getByLabelText("Preferred day");
-    await userEvent.type(day, "2026-12-01");
+    await userEvent.type(screen.getByLabelText("Preferred day"), "2026-12-01");
     await userEvent.click(screen.getByRole("button", { name: "Save request" }));
-    expect(await screen.findByText(/NOT been sent to the clinic/)).toBeInTheDocument();
-    expect(onBooked).toHaveBeenCalled();
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(onDone.mock.calls[0]![0].status_text).toMatch(/NOT been sent to the clinic/);
     const post = api.mock.calls.at(-1)!;
     expect(post[0]).toBe("/appointments");
     expect(post[1].body).toMatchObject({ doctor_id: "d1", preferred_date: "2026-12-01", preferred_window: "any" });
@@ -168,39 +176,63 @@ describe("AppointmentsPanel", () => {
   });
 });
 
-describe("PlansCard", () => {
+const plan = (over = {}) => ({
+  id: "pl1", title: "7-day meal ideas", created_at: new Date().toISOString(), catalogue_version: "v1",
+  constraints_used: { diet_type: "vegetarian", cuisine: "east_indian", meals_per_day: 3, avoid_foods: ["brinjal"], allergies_applied: ["peanuts"], allergies_not_matched: [], avoid_not_matched: [], ideas_available: 12 },
+  review_flags: [{ code: "general_education", severity: "info", message: "dup" }, { code: "medicines_recorded", severity: "review", message: "You have medicines recorded." }],
+  days: [
+    { day: 1, meals: [{ slot: "lunch", idea_id: "m-dalma", name: "Dalma with rice", description: "Lentils with vegetables.", ingredients: ["toor dal", "rice"] }, { slot: "dinner", idea_id: null, name: null, description: "No idea in our small collection fits your choices for this meal.", ingredients: [] }] },
+    { day: 2, meals: [{ slot: "lunch", idea_id: "m-khichdi", name: "Khichdi", description: "Rice and moong.", ingredients: ["rice", "moong"] }] },
+  ],
+  limitations: ["No portions, calories or nutrient targets are given."], notice: "These are general meal ideas.", ...over,
+});
+const prefs = (over = {}) => ({
+  diet_type: "vegetarian", cuisine: "east_indian", meals_per_day: 3, avoid_foods: ["brinjal"], situations: [], saved: true,
+  review_flags: [], notice: "", updated_at: null, ...over,
+});
+const empty = { items: [], total: 0, limit: 20, offset: 0 };
+
+describe("DietPlanner", () => {
   it("shows a dietitian-review stop as a caution, not an error", async () => {
-    api.mockResolvedValueOnce({ items: [], total: 0, limit: 20, offset: 0 });
-    render(<PlansCard canCreate version={0} />);
+    api.mockResolvedValueOnce(prefs()).mockResolvedValueOnce(empty);
+    render(<DietPlanner />);
     api.mockRejectedValueOnce(new ApiError(409, "DIETITIAN_REVIEW_REQUIRED", "Kidney conditions need a diet set by your care team."));
-    await userEvent.click(screen.getByRole("button", { name: "Make a 7-day plan" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make a 7-day plan" }));
     expect(await screen.findByText("Please talk to a clinician or dietitian")).toBeInTheDocument();
     expect(screen.getByText(/care team/)).toBeInTheDocument();
   });
 
-  it("disables plan creation until preferences are saved", async () => {
-    api.mockResolvedValueOnce({ items: [], total: 0, limit: 20, offset: 0 });
-    render(<PlansCard canCreate={false} version={0} />);
-    expect(screen.getByRole("button", { name: "Make a 7-day plan" })).toBeDisabled();
-    expect(screen.getByText("Save your preferences first.")).toBeInTheDocument();
+  it("offers no plan until preferences are saved, and sends the person to the preferences page", async () => {
+    api.mockResolvedValueOnce(prefs({ saved: false })).mockResolvedValueOnce(empty);
+    render(<DietPlanner />);
+    expect(await screen.findByText("Tell us how you eat first")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Make a 7-day plan" })).not.toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: "Set food preferences" });
+    expect(links.length).toBeGreaterThan(0);
+    for (const l of links) expect(l).toHaveAttribute("href", "/diet/preferences");
   });
 
-  it("shows what a plan used and its limits", async () => {
-    api.mockResolvedValueOnce({ items: [], total: 0, limit: 20, offset: 0 });
-    render(<PlansCard canCreate version={0} />);
-    api.mockResolvedValueOnce({
-      id: "pl1", title: "7-day meal ideas", created_at: "2026-11-15T00:00:00Z", catalogue_version: "v1",
-      constraints_used: { diet_type: "vegetarian", cuisine: "east_indian", meals_per_day: 3, avoid_foods: ["brinjal"], allergies_applied: ["peanuts"], allergies_not_matched: [], avoid_not_matched: [], ideas_available: 12 },
-      review_flags: [{ code: "general_education", severity: "info", message: "dup" }, { code: "medicines_recorded", severity: "review", message: "You have medicines recorded." }],
-      days: [{ day: 1, meals: [{ slot: "lunch", idea_id: "m-dalma", name: "Dalma with rice", description: "Lentils with vegetables.", ingredients: ["toor dal", "rice"] }, { slot: "dinner", idea_id: null, name: null, description: "No idea in our small collection fits your choices for this meal.", ingredients: [] }] }],
-      limitations: ["No portions, calories or nutrient targets are given."], notice: "These are general meal ideas.",
-    });
-    await userEvent.click(screen.getByRole("button", { name: "Make a 7-day plan" }));
-    expect(await screen.findByText("Dalma with rice.")).toBeInTheDocument();
+  it("opens the newest plan as day cards, with today's meals first, and keeps the form closed", async () => {
+    api.mockResolvedValueOnce(prefs()).mockResolvedValueOnce({ items: [{ id: "pl1", title: "7-day meal ideas", created_at: new Date().toISOString(), catalogue_version: "v1" }], total: 1, limit: 20, offset: 0 }).mockResolvedValueOnce(plan());
+    render(<DietPlanner />);
+    expect(await screen.findByRole("heading", { name: /^Today/ })).toBeInTheDocument();
+    expect(screen.getAllByText("Dalma with rice").length).toBeGreaterThan(0);
     expect(screen.getByText(/Recorded allergies applied: peanuts/)).toBeInTheDocument();
     expect(screen.getByText("You have medicines recorded.")).toBeInTheDocument();
     expect(screen.queryByText("dup")).not.toBeInTheDocument();
     expect(screen.getByText(/No idea in our small collection/)).toBeInTheDocument();
     expect(screen.getByText(/No portions, calories or nutrient targets/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Eating pattern")).not.toBeInTheDocument(); // the form is on its own page
+    expect(screen.getByRole("link", { name: /Edit food preferences/ })).toHaveAttribute("href", "/diet/preferences");
+    // The whole week is one card per day, and a day can be picked.
+    await userEvent.click(screen.getByRole("button", { name: /Show day 2/ }));
+    expect(screen.getByRole("heading", { name: /^Day 2/ })).toBeInTheDocument();
+  });
+
+  it("says when a plan has ended", async () => {
+    const old = new Date(Date.now() - 20 * 86_400_000).toISOString();
+    api.mockResolvedValueOnce(prefs()).mockResolvedValueOnce({ items: [{ id: "pl1", title: "7-day meal ideas", created_at: old, catalogue_version: "v1" }], total: 1, limit: 20, offset: 0 }).mockResolvedValueOnce(plan({ created_at: old }));
+    render(<DietPlanner />);
+    expect(await screen.findByText("This plan has ended")).toBeInTheDocument();
   });
 });

@@ -280,7 +280,7 @@ describe("assistant page", () => {
     const user = await openChat();
     await user.click(screen.getByRole("button", { name: /Records in this chat/ }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("link", { name: "Open privacy settings" })).toHaveAttribute("href", "/profile#privacy");
+    expect(within(dialog).getByRole("link", { name: "Open privacy settings" })).toHaveAttribute("href", "/settings#privacy");
     expect(within(dialog).getByRole("checkbox", { name: /My medical history/ })).toBeDisabled();
     expect(within(dialog).getByRole("checkbox", { name: /My test results/ })).toBeEnabled();
   });

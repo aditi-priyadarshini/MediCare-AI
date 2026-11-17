@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ConsentCard } from "@/components/settings/ConsentCard";
 import { ExperienceChoice, PreferenceSwitches } from "@/components/settings/PreferenceControls";
 import { Card, SelectField } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -40,6 +41,8 @@ export default function SettingsPage() {
         <ExperienceChoice />
         <PreferenceSwitches only={["large_text", "high_contrast", "reduce_motion"]} />
       </Card>
+
+      <ConsentCard />
 
       <Card aria-labelledby="set-voice" className="space-y-3">
         <h2 id="set-voice" className="text-h3 text-navy-900">{t("settings.voice.title")}</h2>

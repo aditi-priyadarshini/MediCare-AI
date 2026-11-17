@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blocked, foodsProblem, splitFoods, visibleFlags, type DietFlag } from "@/lib/diet";
+import { blocked, dayKey, foodsProblem, planDayLabel, planDayNumber, shortLabel, splitFoods, visibleFlags, type DietFlag } from "@/lib/diet";
 
 describe("splitFoods", () => {
   it("splits on commas, semicolons and new lines, lower-cases and de-duplicates", () => {
@@ -30,5 +30,29 @@ describe("flags", () => {
     expect(visibleFlags([flag("general_education", "info"), flag("pregnancy", "review")]).map((f) => f.code)).toEqual([
       "pregnancy",
     ]);
+  });
+});
+
+
+describe("plan days", () => {
+  it("numbers days from the day the plan was made", () => {
+    const made = "2026-11-17T03:00:00Z";
+    expect(planDayNumber(made, new Date("2026-11-17T20:00:00Z"), "UTC")).toBe(1);
+    expect(planDayNumber(made, new Date("2026-11-18T01:00:00Z"), "UTC")).toBe(2);
+    expect(planDayNumber(made, new Date("2026-11-24T01:00:00Z"), "UTC")).toBe(8); // past a 7-day plan
+  });
+  it("uses the person's time zone for 'today'", () => {
+    // 20:00 UTC is already the next day in India (UTC+5:30).
+    expect(dayKey(new Date("2026-11-17T20:00:00Z"), "Asia/Kolkata")).toBe("2026-11-18");
+    expect(planDayNumber("2026-11-17T03:00:00Z", new Date("2026-11-17T20:00:00Z"), "Asia/Kolkata")).toBe(2);
+  });
+  it("labels each day with its weekday and date", () => {
+    const l = planDayLabel("2026-11-17T03:00:00Z", 3, "UTC");
+    expect(l.weekday).toBe("Thu");
+    expect(l.date).toMatch(/19 Nov/);
+  });
+  it("shortens a diet label", () => {
+    expect(shortLabel("Vegetarian (no egg, fish or meat)")).toBe("Vegetarian");
+    expect(shortLabel("No restriction")).toBe("No restriction");
   });
 });

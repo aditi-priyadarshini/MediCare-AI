@@ -21,10 +21,10 @@ export function HealthSection({ doses }: { doses: AsyncState<Page<Dose>> }) {
   const labs = useAsync(() => api<Page<LabResult>>("/labs?limit=50"), []);
   return (
     <div className="grid gap-4 lg:grid-cols-12">
-      <div className="lg:col-span-7">
+      <div className="min-w-0 lg:col-span-7">
         <HealthTimeline doses={doses} labs={labs} />
       </div>
-      <div className="lg:col-span-5">
+      <div className="min-w-0 lg:col-span-5">
         <LabHighlights labs={labs} />
       </div>
     </div>

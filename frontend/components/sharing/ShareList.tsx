@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { Alert, Button, Card, EmptyState, PageLoading } from "@/components/ui/primitives";
 import { api, errorMessage } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
@@ -77,13 +78,22 @@ export function ShareList({ version, onChanged }: { version: number; onChanged: 
         </Alert>
       )}
       {shares.data.items.length === 0 ? (
-        <EmptyState title="You have not shared anything">Nobody else can see your records.</EmptyState>
+        <EmptyState
+          title="You have not shared anything"
+          action={
+            <LinkButton href="/share/new" variant="primary">
+              Share with someone
+            </LinkButton>
+          }
+        >
+          Nobody else can see your records.
+        </EmptyState>
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid gap-4 lg:grid-cols-2">
           {shares.data.items.map((s) => {
             const range = rangeText(s.date_from, s.date_to);
             return (
-              <li key={s.id} className="rounded-lg border border-line p-4">
+              <li key={s.id} className="self-start rounded-lg border border-line p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="font-medium text-ink">

@@ -1,10 +1,11 @@
 "use client";
 
-import { FileText, Paperclip, Search } from "lucide-react";
+import { FileText, Paperclip, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AddRecordForm } from "@/components/records/AddRecordForm";
 import { RecordDrawer } from "@/components/records/RecordDrawer";
 import { Alert, Button, Card, EmptyState, SelectField, Skeleton, TextField, VerificationBadge } from "@/components/ui/primitives";
+import { Drawer } from "@/components/ui/Drawer";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api-client";
@@ -74,6 +75,7 @@ export function RecordsSection() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<{ tone: "warning" | "success"; text: string } | null>(null);
   const list = useAsync(() => api<Page<HealthRecord>>(`/records?limit=${LIMIT}${type ? `&record_type=${type}` : ""}`), [type]);
 
@@ -85,13 +87,23 @@ export function RecordsSection() {
 
   return (
     <div className="space-y-6">
-      <AddRecordForm
-        onSaved={(text, tone) => {
-          if (tone === "success") show(text, "success");
-          else setNotice({ tone, text });
-          void list.reload();
-        }}
-      />
+      <div className="flex justify-end">
+        <Button onClick={() => setAdding(true)}>
+          <Plus className="h-4 w-4" aria-hidden /> Add record
+        </Button>
+      </div>
+
+      <Drawer open={adding} onClose={() => setAdding(false)} title="Add a record" closeLabel="Close add record" className="sm:w-[30rem]">
+        <AddRecordForm
+          bare
+          onSaved={(text, tone) => {
+            setAdding(false);
+            if (tone === "success") show(text, "success");
+            else setNotice({ tone, text });
+            void list.reload();
+          }}
+        />
+      </Drawer>
 
       {notice && (
         <Alert tone={notice.tone} title={notice.tone === "success" ? "Done" : undefined}>

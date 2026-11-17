@@ -44,7 +44,7 @@ export function DashboardWidget({
     <Card
       aria-labelledby={headingId}
       data-widget={id}
-      className={cn("min-w-0", tone === "ai" && "border-lavender-700/20 bg-lavender-100", className)}
+      className={cn("h-full min-w-0", tone === "ai" && "border-lavender-700/20 bg-lavender-100", className)}
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 id={headingId} className="flex min-w-0 items-center gap-2 text-h3 font-semibold text-navy-900">

@@ -36,8 +36,8 @@ export function AiPanel({ simple = false }: { simple?: boolean }) {
           <StatusBadge tone="ai">{t(granted ? "dash.ai.consentOn" : "dash.ai.consentOff")}</StatusBadge>
           <p className="text-xs text-ink-soft">
             {t("dash.ai.consentHint")}{" "}
-            <Link href="/profile" className="font-semibold text-lavender-700 underline">
-              {t("dash.qa.profile")}
+            <Link href="/settings#privacy" className="font-semibold text-lavender-700 underline">
+              {t("dash.ai.privacy")}
             </Link>
           </p>
         </div>
