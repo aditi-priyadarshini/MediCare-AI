@@ -19,6 +19,9 @@ services:
   migrate:
     image: ${IMAGE_PREFIX:?}/medicare-ai-backend:${IMAGE_TAG:-latest}
     command: ["alembic", "upgrade", "head"]
+    # Load the whole .env so every provider key/model/base URL (GEMINI_API_KEY, NVIDIA_*, OPENROUTER_*,
+    # OPENAI_*, GROQ_*, LLM_CUSTOM_PROVIDERS, ...) reaches the app. Values under `environment:` win.
+    env_file: .env
     environment: &api-env
       DATABASE_URL: postgresql+psycopg://medicare:${POSTGRES_PASSWORD}@postgres:5432/medicare
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
@@ -41,6 +44,9 @@ services:
   backend:
     image: ${IMAGE_PREFIX:?}/medicare-ai-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    # Load the whole .env so every provider key/model/base URL (GEMINI_API_KEY, NVIDIA_*, OPENROUTER_*,
+    # OPENAI_*, GROQ_*, LLM_CUSTOM_PROVIDERS, ...) reaches the app. Values under `environment:` win.
+    env_file: .env
     environment: *api-env
     volumes: [uploads:/data/files]
     depends_on:
@@ -55,6 +61,9 @@ services:
     image: ${IMAGE_PREFIX:?}/medicare-ai-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     command: ["python", "-m", "app.scripts.run_worker"]
+    # Load the whole .env so every provider key/model/base URL (GEMINI_API_KEY, NVIDIA_*, OPENROUTER_*,
+    # OPENAI_*, GROQ_*, LLM_CUSTOM_PROVIDERS, ...) reaches the app. Values under `environment:` win.
+    env_file: .env
     environment: *api-env
     depends_on:
       migrate: { condition: service_completed_successfully }
