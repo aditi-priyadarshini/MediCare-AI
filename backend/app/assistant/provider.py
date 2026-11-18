@@ -459,14 +459,22 @@ def resolve_specs(settings) -> list[ProviderSpec]:
         else:
             known = ", ".join(sorted(PRESETS) + sorted(custom))
             raise ValueError(f"Unknown LLM provider '{name}'. Known: {known}")
-        if not model:
+        # A provider may list several models separated by commas (e.g. GEMINI_MODEL=a,b,c). Each
+        # becomes its own chain member, tried in order, so a busy model falls through to the next.
+        models = [m.strip() for m in model.split(",") if m.strip()]
+        if not models:
             raise ValueError(f"{name}: a model name is required")
+        if len(set(models)) != len(models):
+            raise ValueError(f"{name}: the same model is listed twice")
         if url:
             url = check_base_url(name, url, production=production)
         local = bool(url) and _is_local(urlsplit(url).hostname or "")
         if not key and not (kind == "openai_compatible" and local):
             raise ValueError(f"{name}: an API key is required (set {name.upper()}_API_KEY)")
-        specs.append(ProviderSpec(name, kind, model, key, url, tuple(headers.items())))
+        for i, one in enumerate(models):
+            # The first keeps the plain provider name; extras are "<name>-2", "<name>-3", ...
+            member = name if i == 0 else f"{name}-{i + 1}"
+            specs.append(ProviderSpec(member, kind, one, key, url, tuple(headers.items())))
     return specs
 
 
