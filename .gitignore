@@ -22,3 +22,7 @@ coverage/
 node_modules/
 .next/
 *.log
+secrets/
+mobile/node_modules/
+mobile/google-services.json
+mobile/GoogleService-Info.plist

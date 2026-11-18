@@ -250,3 +250,23 @@ Recipient (no cookie, no CSRF, rate limited):
 | POST | `/share-access/start` | Body `{token}`. Always 202 with the same message; a code is emailed only for an active link. |
 | POST | `/share-access/verify` | Body `{token, code}`. 200 `{session_token, expires_in_seconds}` or 400 `SHARE_CODE_INVALID` (same for unknown, expired, revoked, wrong or used codes). |
 | GET | `/share-access/summary` | Header `X-Share-Session`. 401 `SHARE_SESSION_INVALID`, 403 `SHARE_NOT_ACTIVE` once revoked or expired. |
+
+## 14. Reminder-call endpoints (WebRTC; see `docs/REMINDER_CALLS.md`)
+
+Cookie session + CSRF, like everything else. Off unless `CALLS_ENABLED=true`; ringing also needs
+the `reminder_call` consent.
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/devices` | Body `{platform: android\|ios, push_token, voip_token?, app_version?}`. Idempotent per `push_token`; a token last used by another account moves to the caller. `can_ring` is false for an iOS device with no `voip_token`. |
+| GET | `/devices` | Own, non-revoked devices. |
+| DELETE | `/devices/{id}` | Revokes the device (204). 404 for someone else's. |
+| GET | `/calls` | Own recent calls (`?limit=1-100`). No medicine detail. |
+| GET | `/calls/ice-servers` | STUN plus TURN with short-lived credentials. |
+| GET | `/calls/{id}` | One own call's status. 404 for someone else's. |
+| POST | `/calls/{id}/accept` | `ringing -> answered`. Returns `{call, dose{medication_name, dose_text, spoken_text,...}, ticket, ws_path, ice_servers}`. 409 `CALL_NOT_RINGING` (expired or already answered), 409 `DOSE_ALREADY_LOGGED`. Does **not** change the dose. |
+| POST | `/calls/{id}/decline` | Final; never retried. Idempotent. |
+| POST | `/calls/{id}/end` | Closes the call. Idempotent. |
+| WS | `/calls/{id}/ws?ticket=` | Signalling. Client sends `{type:"offer", sdp}` (all ICE candidates gathered); server replies `{type:"answer", sdp}`, may send `{type:"info"\|"error", code}`; either side may send `{type:"bye"}`. Close code 4401 for a bad or premature ticket. |
+
+A dose is marked taken only by the existing `POST /doses/{id}/take`.

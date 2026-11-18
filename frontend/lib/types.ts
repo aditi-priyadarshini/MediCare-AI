@@ -84,7 +84,8 @@ export type ConsentType =
   | "privacy_policy"
   | "health_data_processing"
   | "ai_context"
-  | "reminder_email";
+  | "reminder_email"
+  | "reminder_call";
 
 export interface Consent {
   consent_type: ConsentType;

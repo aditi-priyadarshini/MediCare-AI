@@ -17,6 +17,8 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.calls import worker as call_worker
+from app.calls.push import PushProvider
 from app.core.config import Settings
 from app.identity.models import User
 from app.identity.providers import EmailProvider
@@ -40,6 +42,8 @@ class TickStats:
     notifications_created: int = 0
     delivered: int = 0
     emails_sent: int = 0
+    calls_rung: int = 0
+    calls_failed: int = 0
 
 
 def _insert_notifications(db: Session, rows: list[dict]) -> int:
@@ -198,7 +202,13 @@ def send_emails(db: Session, now: datetime, email: EmailProvider, settings: Sett
     return sent
 
 
-def tick(db: Session, now: datetime, email: EmailProvider, settings: Settings) -> TickStats:
+def tick(
+    db: Session,
+    now: datetime,
+    email: EmailProvider,
+    settings: Settings,
+    push: PushProvider | None = None,
+) -> TickStats:
     stats = TickStats()
     stats.doses_created = generate_all_doses(db, now)
     stats.notifications_created = create_dose_notifications(db, now) + create_alert_notifications(
@@ -208,4 +218,11 @@ def tick(db: Session, now: datetime, email: EmailProvider, settings: Settings) -
     db.flush()
     stats.emails_sent = send_emails(db, now, email, settings)
     db.commit()
+    # Calls last: they commit as they go (the row must exist before the phone is woken), and
+    # a failure here must not undo the notifications and emails above.
+    if push is not None and settings.calls_enabled:
+        call_worker.expire_calls(db, now, settings)
+        db.commit()
+        call_stats = call_worker.ring_due_doses(db, now, push, settings)
+        stats.calls_rung, stats.calls_failed = call_stats.rung, call_stats.push_failed
     return stats

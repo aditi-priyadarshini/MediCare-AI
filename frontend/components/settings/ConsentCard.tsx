@@ -22,6 +22,11 @@ const CONSENT_COPY: Record<string, { label: string; description: string }> = {
     description:
       "One short email that says you have a reminder. It never includes medicine names. You can turn this off any time.",
   },
+  reminder_call: {
+    label: "Ring my phone when a dose is due",
+    description:
+      "The MediCare AI phone app rings like an incoming call and reads the reminder once you answer. The ring itself never shows a medicine name. A call never marks a dose as taken; you do that in the app. You can turn this off any time.",
+  },
 };
 
 /** Privacy and consent switches. Lives in Settings; every change is recorded by the server. */

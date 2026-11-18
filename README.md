@@ -33,6 +33,7 @@ Phase 3 notes:
 - Reminder email is opt-in (`reminder_email` consent), at most one per patient per tick, and never contains a medicine name.
 - The catalogue holds names, forms and strengths only: no dosing, interactions or advice. Its 14 seed rows are in migration 0003; admins add more with `POST /admin/medicines`.
 - Run the worker with `python -m app.scripts.run_worker` (or `--once`). Docker Compose starts it as the `worker` service.
+- **Reminder calls (optional, off by default):** the phone app can ring like an incoming call when a dose is due and read the reminder over WebRTC. Needs push credentials, a TURN server and the app in `mobile/`; see `docs/REMINDER_CALLS.md`. A call never marks a dose as taken.
 - Endpoints: `/medicines`, `/prescriptions`, `/medications` (+ `/schedules`, `/supplies`, `/alerts`), `/schedules/{id}`, `/supplies/{id}`, `/doses` (+ `/take`, `/skip`, `/reset`), `/notifications`.
 
 Phase 4 notes:

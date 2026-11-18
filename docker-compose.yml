@@ -47,6 +47,19 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       LLM_CUSTOM_PROVIDERS: ${LLM_CUSTOM_PROVIDERS:-[]}
+      # Reminder calls (WebRTC). Off unless CALLS_ENABLED=true. See docs/REMINDER_CALLS.md.
+      CALLS_ENABLED: ${CALLS_ENABLED:-false}
+      STUN_URLS: ${STUN_URLS:-stun:stun.l.google.com:19302}
+      TURN_URLS: ${TURN_URLS:-}
+      TURN_SECRET: ${TURN_SECRET:-}
+      TTS_COMMAND: ${TTS_COMMAND:-}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      APNS_KEY_FILE: ${APNS_KEY_FILE:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-}
+      APNS_SANDBOX: ${APNS_SANDBOX:-false}
     depends_on:
       postgres: { condition: service_healthy }
 
@@ -70,8 +83,35 @@ services:
     build: ./backend
     command: ["python", "-m", "app.scripts.run_worker"]
     environment: *api-env
+    # Push credentials (FCM service-account JSON, APNs .p8) live in ./secrets, never in Git.
+    volumes: ["./secrets:/run/call-secrets:ro"]
     depends_on:
       migrate: { condition: service_completed_successfully }
+
+  turn: # optional TURN relay for reminder calls: docker compose --profile calls up
+    profiles: ["calls"]
+    image: coturn/coturn:latest
+    # Relaying media needs a wide UDP range; on a real server prefer `network_mode: host`.
+    command:
+      - "-n"
+      - "--log-file=stdout"
+      - "--use-auth-secret"
+      - "--static-auth-secret=${TURN_SECRET:?set TURN_SECRET in .env}"
+      - "--realm=${TURN_REALM:-medicare.local}"
+      - "--no-cli"
+      - "--fingerprint"
+      - "--min-port=49160"
+      - "--max-port=49200"
+      - "--no-multicast-peers"
+      # Never let a caller reach private networks through the relay.
+      - "--denied-peer-ip=10.0.0.0-10.255.255.255"
+      - "--denied-peer-ip=172.16.0.0-172.31.255.255"
+      - "--denied-peer-ip=192.168.0.0-192.168.255.255"
+      - "--denied-peer-ip=127.0.0.0-127.255.255.255"
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
 
   frontend:
     build:
