@@ -18,6 +18,23 @@ _SIGNATURES: tuple[tuple[bytes, str], ...] = (
 _KEY = re.compile(r"^[0-9a-f]{32}$")
 
 
+def read_capped(stream, limit: int) -> bytes:
+    """Read at most ``limit + 1`` bytes, so callers can tell "over the cap" without buffering more.
+
+    Loops because a file-like object may return fewer bytes than asked for in one read(); a single
+    short read must never let an oversize upload slip under the cap.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while total <= limit:
+        chunk = stream.read(limit + 1 - total)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total += len(chunk)
+    return b"".join(chunks)
+
+
 def sniff_content_type(data: bytes) -> str | None:
     for magic, content_type in _SIGNATURES:
         if data.startswith(magic):

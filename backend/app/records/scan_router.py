@@ -14,7 +14,7 @@ from app.api.deps import CurrentUser, DbDep
 from app.audit.service import record
 from app.core.errors import AppError
 from app.core.ratelimit import enforce
-from app.core.storage import sniff_content_type
+from app.core.storage import read_capped, sniff_content_type
 from app.records import extract, parse
 from app.records.schemas import ScanLabRow, ScanOut, ScanRecordDraft, ScanStatus
 
@@ -60,7 +60,7 @@ def scan_document(
     enforce(request, "scan", str(user.id), settings.scan_requests_per_minute, 60)
 
     limit = settings.max_upload_bytes
-    data = file.file.read(limit + 1)  # never buffer more than the cap
+    data = read_capped(file.file, limit)  # never buffer more than the cap
     if len(data) > limit:
         raise AppError(413, "FILE_TOO_LARGE", f"Files can be up to {limit // (1024 * 1024)} MB.")
     if not data:

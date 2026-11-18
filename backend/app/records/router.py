@@ -11,7 +11,12 @@ from app.api.deps import CurrentUser, DbDep
 from app.audit.service import record
 from app.core.errors import AppError
 from app.core.pagination import Page, PageDep
-from app.core.storage import LocalFileStore, safe_display_name, sniff_content_type
+from app.core.storage import (
+    LocalFileStore,
+    read_capped,
+    safe_display_name,
+    sniff_content_type,
+)
 from app.records import service as svc
 from app.records.models import HealthRecord, LabResult
 from app.records.schemas import (
@@ -148,7 +153,7 @@ def upload_record_file(
 ):
     row = svc.owned_record_or_404(db, record_id, user)
     limit = request.app.state.settings.max_upload_bytes
-    data = file.file.read(limit + 1)  # never buffer more than the cap
+    data = read_capped(file.file, limit)  # never buffer more than the cap
     if len(data) > limit:
         raise AppError(413, "FILE_TOO_LARGE", f"Files can be up to {limit // (1024 * 1024)} MB.")
     if not data:
