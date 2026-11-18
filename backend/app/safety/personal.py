@@ -88,7 +88,7 @@ def _terms(foods: list[str] | None) -> list[eng.PatientTerm] | None:
     return None if foods is None else [eng.PatientTerm(str(i), f) for i, f in enumerate(foods)]
 
 
-def _coverage_notes(conditions: int, allergies: int) -> list[str]:
+def coverage_notes(conditions: int, allergies: int) -> list[str]:
     """What the patient has not told us, so a quiet result is not read as a clearance."""
     notes = []
     if not conditions:
@@ -149,7 +149,7 @@ def assess_overview(db: Session, user, body: FoodCheckIn) -> Assessment:
             allergies=len(allergies),
             foods=len(body.foods) if body.foods is not None else None,
         ),
-        notes=_coverage_notes(len(conditions), len(allergies)),
+        notes=coverage_notes(len(conditions), len(allergies)),
         watch_for=watch,
     )
 
@@ -203,7 +203,7 @@ def assess_medicine(db: Session, user, medicine: Medicine, foods: list[str] | No
             allergies=len(allergies),
             foods=len(foods) if foods is not None else None,
         ),
-        notes=_coverage_notes(len(conditions), len(allergies))
+        notes=coverage_notes(len(conditions), len(allergies))
         + (
             []
             if own
