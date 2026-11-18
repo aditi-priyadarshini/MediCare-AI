@@ -48,7 +48,8 @@ services:
     # OPENAI_*, GROQ_*, LLM_CUSTOM_PROVIDERS, ...) reaches the app. Values under `environment:` win.
     env_file: .env
     environment: *api-env
-    volumes: [uploads:/data/files]
+    # Push credentials (FCM service-account JSON) live in ./secrets next to this file, never in Git.
+    volumes: ["uploads:/data/files", "./secrets:/run/call-secrets:ro"]
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:
@@ -64,12 +65,39 @@ services:
     image: ${IMAGE_PREFIX:?}/medicare-ai-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     command: ["python", "-m", "app.scripts.run_worker"]
+    volumes: ["./secrets:/run/call-secrets:ro"]
     # Load the whole .env so every provider key/model/base URL (GEMINI_API_KEY, NVIDIA_*, OPENROUTER_*,
     # OPENAI_*, GROQ_*, LLM_CUSTOM_PROVIDERS, ...) reaches the app. Values under `environment:` win.
     env_file: .env
     environment: *api-env
     depends_on:
       migrate: { condition: service_completed_successfully }
+
+  # Reminder calls only: TURN relay. Started when COMPOSE_PROFILES=calls is set in .env.
+  # Host networking because a relay needs a wide UDP range; open 3478 (udp+tcp) and
+  # 49160-49200 (udp) in the cloud firewall AND on the server itself.
+  turn:
+    profiles: ["calls"]
+    image: coturn/coturn:4.6.2
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - "-n"
+      - "--log-file=stdout"
+      - "--use-auth-secret"
+      - "--static-auth-secret=${TURN_SECRET:?set TURN_SECRET in .env}"
+      - "--realm=${TURN_REALM:-medicare.local}"
+      # On OCI the VM only knows its private IP: PUBLIC_IP/PRIVATE_IP
+      - "--external-ip=${TURN_EXTERNAL_IP:?set TURN_EXTERNAL_IP in .env as PUBLIC_IP/PRIVATE_IP}"
+      - "--no-cli"
+      - "--fingerprint"
+      - "--min-port=49160"
+      - "--max-port=49200"
+      - "--no-multicast-peers"
+      - "--denied-peer-ip=10.0.0.0-10.255.255.255"
+      - "--denied-peer-ip=172.16.0.0-172.31.255.255"
+      - "--denied-peer-ip=192.168.0.0-192.168.255.255"
+      - "--denied-peer-ip=127.0.0.0-127.255.255.255"
 
   frontend:
     image: ${IMAGE_PREFIX:?}/medicare-ai-frontend:${IMAGE_TAG:-latest}
