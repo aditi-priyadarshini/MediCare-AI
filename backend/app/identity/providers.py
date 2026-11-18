@@ -2,6 +2,7 @@
 
 import logging
 import smtplib
+import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
 from typing import Protocol
@@ -18,14 +19,58 @@ class EmailProvider(Protocol):
 
 
 class SmtpEmailProvider:
-    def __init__(self, host: str, port: int, sender: str):
+    """SMTP delivery with optional login and TLS (works with Zoho, Gmail, SES, Postfix...).
+
+    security: "none"     plain SMTP (local relay / Mailpit; no login is sent over it)
+              "starttls" connect, then upgrade to TLS (Zoho port 587)
+              "ssl"      implicit TLS from the first byte (Zoho port 465)
+    """
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        sender: str,
+        username: str | None = None,
+        password: str | None = None,
+        security: str = "none",
+        timeout: int = 15,
+    ):
+        if security not in ("none", "starttls", "ssl"):
+            raise ValueError(f"unknown SMTP security mode: {security}")
+        if username and security == "none":
+            raise ValueError("SMTP login requires SMTP_SECURITY=starttls or ssl")
         self.host, self.port, self.sender = host, port, sender
+        self.username, self.password = username, password
+        self.security, self.timeout = security, timeout
+
+    @classmethod
+    def from_settings(cls, settings) -> "SmtpEmailProvider":
+        return cls(
+            settings.smtp_host,
+            settings.smtp_port,
+            settings.smtp_from,
+            username=settings.smtp_username,
+            password=settings.smtp_password,
+            security=settings.smtp_security,
+        )
 
     def send(self, to: str, subject: str, body: str) -> None:
         msg = EmailMessage()
         msg["From"], msg["To"], msg["Subject"] = self.sender, to, subject
         msg.set_content(body)
-        with smtplib.SMTP(self.host, self.port, timeout=10) as smtp:
+        ctx = ssl.create_default_context()
+        if self.security == "ssl":
+            smtp: smtplib.SMTP = smtplib.SMTP_SSL(
+                self.host, self.port, timeout=self.timeout, context=ctx
+            )
+        else:
+            smtp = smtplib.SMTP(self.host, self.port, timeout=self.timeout)
+        with smtp:
+            if self.security == "starttls":
+                smtp.starttls(context=ctx)
+            if self.username:
+                smtp.login(self.username, self.password or "")
             smtp.send_message(msg)
 
 

@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     smtp_host: str = "localhost"
     smtp_port: int = 1025
     smtp_from: str = "MediCare AI <no-reply@medicare.local>"
+    # Authenticated SMTP (Zoho etc.). Leave username/password unset for a local relay or Mailpit.
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_security: Literal["none", "starttls", "ssl"] = "none"
 
     # Google OAuth (optional; the endpoints report "unavailable" when unset)
     google_client_id: str | None = None
@@ -166,6 +170,10 @@ class Settings(BaseSettings):
                 raise ValueError("COOKIE_SECURE must be true in production")
             if self.email_backend == "memory":
                 raise ValueError("EMAIL_BACKEND=memory is not allowed in production")
+        if bool(self.smtp_username) != bool(self.smtp_password):
+            raise ValueError("SMTP_USERNAME and SMTP_PASSWORD must be set together")
+        if self.smtp_username and self.smtp_security == "none":
+            raise ValueError("SMTP_SECURITY must be starttls or ssl when SMTP_USERNAME is set")
         if self.calls_enabled and self.environment == "production":
             if not self.turn_urls or not self.turn_secret:
                 raise ValueError("TURN_URLS and TURN_SECRET are required when CALLS_ENABLED=true")

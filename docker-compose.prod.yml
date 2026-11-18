@@ -31,6 +31,9 @@ services:
       GOOGLE_REDIRECT_URI: ${FRONTEND_ORIGINS}/api/v1/auth/google/callback
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST in .env}
       SMTP_PORT: ${SMTP_PORT:-25}
+      SMTP_SECURITY: ${SMTP_SECURITY:-none}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-MediCare AI <no-reply@localhost>}
       STORAGE_DIR: /data/files
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}

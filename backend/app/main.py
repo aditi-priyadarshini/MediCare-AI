@@ -71,7 +71,7 @@ def create_app(
     app.state.email = email or (
         MemoryEmailProvider()
         if settings.email_backend == "memory"
-        else SmtpEmailProvider(settings.smtp_host, settings.smtp_port, settings.smtp_from)
+        else SmtpEmailProvider.from_settings(settings)
     )
     app.state.google = google or (
         HttpGoogleOAuthProvider(

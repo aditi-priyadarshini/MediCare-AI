@@ -44,7 +44,7 @@ def main() -> int:
     email = (
         MemoryEmailProvider()
         if settings.email_backend == "memory"
-        else SmtpEmailProvider(settings.smtp_host, settings.smtp_port, settings.smtp_from)
+        else SmtpEmailProvider.from_settings(settings)
     )
     push = build_push_provider(settings)
     signal.signal(signal.SIGTERM, _request_stop)
