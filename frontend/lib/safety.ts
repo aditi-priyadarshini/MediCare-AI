@@ -6,6 +6,10 @@ import type {
   ExplainMode,
   IssueSection,
   Price,
+  PriceEstimate,
+  ReviewIssue,
+  ReviewOrigin,
+  ReviewSection,
   SafetyStatus,
   SafetyCheckName,
   SafetyFinding,
@@ -241,4 +245,58 @@ export function splitPairs<T extends { state: string }>(
   const quiet = (p: T) =>
     p.state === "ai_none_reported" || p.state === "ai_unsure";
   return { shown: pairs.filter((p) => !quiet(p)), quiet: pairs.filter(quiet) };
+}
+
+/* ------------------------------------------------------------ full AI safety review */
+export const REVIEW_SECTION_LABEL: Record<ReviewSection, string> = {
+  ...SECTION_LABEL,
+  age: "Your age group",
+};
+
+export const ORIGIN_LABEL: Record<ReviewOrigin, string> = {
+  reference: "Reference data",
+  list: "From your list",
+  ai: "AI-generated",
+};
+
+export const ORIGIN_CHIP: Record<ReviewOrigin, string> = {
+  reference: "bg-mint-100 text-teal-700",
+  list: "bg-info-100 text-info-700",
+  ai: "bg-amber-100 text-amber-600",
+};
+
+/**
+ * The overall status of an AI review in plain words. As everywhere in this app there is no "safe",
+ * "clear" or "success": the calmest status says only that nothing was reported, and what that
+ * is worth.
+ */
+export function reviewStatusText(
+  status: SafetyStatus,
+  counts: { needs_attention: number; review: number },
+): { tone: Tone; title: string; body: string } {
+  if (status === "no_matching_record") {
+    return {
+      tone: "info",
+      title: "Nothing reported",
+      body: "Neither the reference data nor the AI reported a concern. That is not the same as being cleared: the AI can miss things. Ask a pharmacist if you are unsure.",
+    };
+  }
+  return statusText(status, counts);
+}
+
+/** Groups issues by section, keeping the incoming order (most serious first) inside each group. */
+export function groupIssues(issues: ReviewIssue[]): { section: ReviewSection; items: ReviewIssue[] }[] {
+  const order: ReviewSection[] = ["allergy", "drug_drug", "drug_condition", "duplicate", "drug_food", "age"];
+  return order
+    .map((section) => ({ section, items: issues.filter((i) => i.section === section) }))
+    .filter((g) => g.items.length > 0);
+}
+
+export const ESTIMATE_LABEL = "AI estimate";
+
+/** "about ₹10.00 to ₹20.00 for 10 tablet(s) (₹1.00 to ₹2.00 each)". Always reads as a guess. */
+export function estimateLine(p: PriceEstimate): string {
+  const range = `${formatMoney(p.low, p.currency)} to ${formatMoney(p.high, p.currency)}`;
+  const each = `${formatMoney(p.unit_low, p.currency)} to ${formatMoney(p.unit_high, p.currency)} per ${p.pack_unit}`;
+  return `About ${range} for ${p.pack_quantity} ${p.pack_unit}${p.pack_quantity === 1 ? "" : "s"} (${each})`;
 }

@@ -539,3 +539,90 @@ export interface AiPairsResult {
   ai_label: string;
   disclaimer: string;
 }
+
+/* ------------------------------------------------------------- full AI safety review */
+export type ReviewOrigin = "reference" | "list" | "ai";
+export type ReviewSection = IssueSection | "age";
+export type ReviewMode = "ai" | "partial" | "consent_required" | "ai_unavailable" | "too_few" | "too_many";
+
+export interface ReviewIssue {
+  origin: ReviewOrigin;
+  section: ReviewSection;
+  severity: Severity;
+  title: string;
+  detail: string;
+  guidance: string | null;
+  source: string | null;
+  medication_names: string[];
+}
+export interface ReviewEffect {
+  effect: string;
+  frequency: EffectFrequency;
+  serious: boolean;
+  origin: ReviewOrigin;
+  source: string | null;
+}
+export interface MedicineReview {
+  name: string;
+  candidate: boolean;
+  ai_recognised: boolean | null;
+  effects: ReviewEffect[];
+}
+export interface AiReview {
+  mode: ReviewMode;
+  message: string;
+  status: SafetyStatus;
+  counts: { needs_attention: number; review: number };
+  issues: ReviewIssue[];
+  medicines: MedicineReview[];
+  unrecognised: string[];
+  coverage: { medicines: number; pairs: number; conditions: number; allergies: number; foods: number };
+  context: { medications: number; conditions: number; allergies: number; foods: number | null; age_group: boolean };
+  notes: string[];
+  ai_label: string;
+  help_text: string;
+  disclaimer: string;
+}
+
+/* ------------------------------------------------- AI generic alternatives and prices */
+export type AltMode = "ai" | "partial" | "consent_required" | "ai_unavailable" | "none";
+export type AltStatus = "found" | "none_found" | "not_recognised" | "not_checked";
+export interface PriceEstimate {
+  low: string;
+  high: string;
+  currency: string;
+  pack_quantity: number;
+  pack_unit: string;
+  unit_low: string;
+  unit_high: string;
+  basis: "ai_estimate";
+}
+export interface AltProduct {
+  name: string;
+  kind: "generic" | "brand";
+  strength: string | null;
+  form: string | null;
+  price: PriceEstimate | null;
+  differences: string[];
+}
+export interface MedicineAlternatives {
+  name: string;
+  medication_id: string | null;
+  status: AltStatus;
+  generic_name: string | null;
+  is_brand: boolean | null;
+  ingredients: string[];
+  strength: string | null;
+  form: string | null;
+  own_price: PriceEstimate | null;
+  alternatives: AltProduct[];
+  reference: Alternatives | null;
+}
+export interface AiAlternatives {
+  mode: AltMode;
+  message: string;
+  medicines: MedicineAlternatives[];
+  ai_label: string;
+  price_notice: string;
+  notice: string;
+}

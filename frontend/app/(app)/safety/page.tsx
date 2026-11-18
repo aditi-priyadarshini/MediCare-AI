@@ -6,9 +6,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/primitives";
 
 const TOOLS: Array<{ href: string; title: string; text: string; icon: LucideIcon }> = [
-  { href: "/safety/medicines", title: "My medicines", text: "See what needs attention in everything you take now.", icon: Pill },
+  { href: "/safety/medicines", title: "My medicines", text: "A full AI review: interactions, conditions, allergies, food, age and side effects.", icon: Pill },
   { href: "/safety/lookup", title: "Look up a medicine", text: "Check any medicine against your list, conditions and allergies.", icon: Search },
-  { href: "/safety/alternatives", title: "Compare medicines", text: "Find products with the same ingredients, and their prices.", icon: ArrowLeftRight },
+  { href: "/safety/alternatives", title: "Generics and prices", text: "Find cheaper products with the same ingredients, with rough price estimates.", icon: ArrowLeftRight },
   { href: "/safety/report", title: "Note a side effect", text: "Keep a private record of anything you noticed.", icon: ClipboardList },
   { href: "/safety/authenticity", title: "Is this pack genuine?", text: "Check a barcode or lot number.", icon: PackageCheck },
 ];

@@ -1,12 +1,13 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useState } from "react";
 import { AddMedicationFlow } from "@/components/medications/AddMedicationFlow";
 import { AlertsCard, RemindersCard } from "@/components/medications/AlertsCard";
 import { DosesCard } from "@/components/medications/DosesCard";
 import { MedicationsCard } from "@/components/medications/MedicationsCard";
-import { Button, PageHeader } from "@/components/ui";
+import { Alert, Button, PageHeader } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import { useAsync } from "@/lib/hooks";
 import { useT } from "@/lib/i18n";
@@ -19,6 +20,7 @@ export default function MedicationsPage() {
   // Bumping the version reloads every card after any change (a dose taken can change stock).
   const [version, setVersion] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
   // One request each, shared by the cards that need them (the list and the doses card both read
@@ -43,12 +45,27 @@ export default function MedicationsPage() {
         }
       />
       <div className="space-y-6">
+        {justAdded && (
+          <Alert tone="info" title="Check your updated list">
+            A new medicine can interact with what you already take, or with your conditions and allergies.{" "}
+            <Link href="/safety/medicines?run=1" className="font-semibold text-teal-700 underline">
+              Run a safety review now
+            </Link>
+          </Alert>
+        )}
         <RemindersCard version={version} onChange={refresh} />
         <AlertsCard alerts={alerts} />
         <DosesCard list={doses} meds={meds} onChange={refresh} />
         <MedicationsCard meds={meds} doses={doses} alerts={alerts} onChange={refresh} onAdd={() => setAdding(true)} />
       </div>
-      <AddMedicationFlow open={adding} onClose={() => setAdding(false)} onAdded={refresh} />
+      <AddMedicationFlow
+        open={adding}
+        onClose={() => setAdding(false)}
+        onAdded={() => {
+          refresh();
+          setJustAdded(true);
+        }}
+      />
     </div>
   );
 }
