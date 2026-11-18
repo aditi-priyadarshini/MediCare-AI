@@ -114,9 +114,7 @@ def _prepare(data: bytes, max_pixels: int) -> bytes:
     except ScanUnavailable:
         raise
     except Exception as exc:  # Pillow raises several types for damaged or hostile files
-        raise ScanUnavailable(
-            "This image could not be opened.", "IMAGE_UNREADABLE", 422
-        ) from exc
+        raise ScanUnavailable("This image could not be opened.", "IMAGE_UNREADABLE", 422) from exc
     if img.width < _MIN_OCR_WIDTH:
         factor = _MIN_OCR_WIDTH / img.width
         img = img.resize((_MIN_OCR_WIDTH, max(1, round(img.height * factor))), Image.LANCZOS)
