@@ -366,3 +366,53 @@ def test_status_endpoint_lists_the_chain(chained_app, make_actor):
     pat = make_actor("status@example.com")
     s = pat.get("/assistant/status").json()
     assert s["mode"] == "llm" and s["provider"] == "gemini,nvidia"
+
+
+# --- a vendor's odd reply must never escape as an exception (it used to become a 500) -------
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"candidates": [{"content": {"parts": [{"text": None}]}}]},
+        {"choices": [{"message": {"content": [{"text": None}]}}]},
+        {"content": [{"type": "text", "text": None}]},
+    ],
+)
+def test_null_text_in_a_reply_is_a_provider_failure_not_a_crash(monkeypatch, body):
+    import httpx
+
+    from app.assistant import provider as P
+
+    monkeypatch.setattr(
+        P.httpx,
+        "post",
+        lambda url, **k: httpx.Response(200, json=body, request=httpx.Request("POST", url)),
+    )
+    chain = P.FailoverProvider(
+        [
+            P.GeminiProvider("gemini", "k", "m"),
+            P.OpenAICompatibleProvider("nvidia", "https://x.test/v1", "k", "m"),
+            P.AnthropicProvider("k", "m"),
+        ]
+    )
+    with pytest.raises(P.LLMUnavailable) as err:
+        chain.complete(system="s", user="u", max_tokens=10)
+    assert err.value.attempted == ("gemini", "nvidia", "anthropic")
+
+
+def test_an_unexpected_exception_from_a_member_falls_through_to_the_next():
+    from app.assistant import provider as P
+
+    class Boom:
+        name, model, configured = "boom", "m", True
+
+        def complete(self, **_):
+            raise RuntimeError("anything at all")
+
+    class Good(Boom):
+        name = "good"
+
+        def complete(self, **_):
+            return P.LLMResult("fine", "m", "good")
+
+    out = P.FailoverProvider([Boom(), Good()]).complete(system="s", user="u", max_tokens=5)
+    assert out.text == "fine" and out.attempted == ("boom", "good")
