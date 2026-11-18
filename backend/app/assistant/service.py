@@ -56,6 +56,68 @@ UNAVAILABLE_INTRO = (
 )
 
 
+NO_MATCH_TEXT = (
+    "I couldn't find anything in the records you have allowed that relates to what you asked, "
+    "so I'm not listing them all. Try naming a test, a medicine or a kind of record, for "
+    'example "What was my HbA1c?" or "What medicines do I take?".'
+)
+NO_MATCH_UNAVAILABLE_TEXT = (
+    "I couldn't reach the AI model just now, and nothing in the records you have allowed "
+    "clearly relates to what you asked, so I'm not listing them all. Please try again in a "
+    "moment, or name a test, a medicine or a kind of record."
+)
+
+_WORD = re.compile(r"[a-z][a-z0-9]{2,}")
+# Words that appear in every label of a kind ("Dose log, X, last 14 days") and so say nothing
+# about which record the patient meant.
+_GENERIC = {
+    "lab", "result", "results", "dose", "log", "last", "days", "condition", "allergy",
+    "change", "conflicting", "values", "not", "comparable", "timeline", "against", "start",
+    "date", "missing", "reference", "note", "the", "and", "for", "with",
+}  # fmt: skip
+_CATEGORY_WORDS = {
+    "lab_result": {"lab", "labs", "test", "tests", "result", "results", "blood", "levels"},
+    "medication": {"medicine", "medicines", "medication", "medications", "tablet", "tablets",
+                   "pill", "pills", "drug", "drugs", "prescription", "prescriptions", "taking"},
+    "dose_log": {"dose", "doses", "missed", "skipped", "adherence", "taken", "taking"},
+    "condition": {"condition", "conditions", "diagnosis", "diagnoses", "history", "medical"},
+    "allergy": {"allergy", "allergies", "allergic"},
+    "health_record": {"record", "records", "document", "documents", "report", "reports",
+                      "history", "prescription", "prescriptions"},
+}  # fmt: skip
+
+
+# Words that ask for the whole listing rather than one record ("What is on my list?").
+_LIST_ALL = {"list", "everything", "summary", "summarise", "summarize", "overview", "recorded"}
+
+
+def _stem(word: str) -> str:
+    return word[:-1] if word.endswith("s") and len(word) > 3 else word
+
+
+def relevant_items(items: list[ev.EvidenceItem], question: str) -> list[ev.EvidenceItem]:
+    """For the plain record listing only: keep the items the question is about.
+
+    An item is kept when the question names it (a test, medicine, condition or allergy) or
+    names its kind of record ("medicines", "doses", "history"). A request for the whole list
+    ("what is on my list?", "summarise everything") keeps everything. Reference notes were
+    already chosen by name, so they stay. A question that matches nothing ("i want to shit") keeps
+    nothing, so the listing does not dump every record on an unrelated message."""
+    q = {_stem(w) for w in _WORD.findall(policy.normalize(question))}
+    if q & {_stem(w) for w in _LIST_ALL}:
+        return list(items)
+    kinds = {k for k, words in _CATEGORY_WORDS.items() if q & {_stem(w) for w in words}}
+    kept = []
+    for it in items:
+        if it.source_type == "reference" or it.source_type in kinds:
+            kept.append(it)
+            continue
+        names = {_stem(w) for w in _WORD.findall(it.label.lower())} - _GENERIC
+        if q & names:
+            kept.append(it)
+    return kept
+
+
 def not_found() -> AppError:
     return AppError(404, "RESOURCE_NOT_FOUND", "The requested resource was not found.")
 
@@ -177,17 +239,28 @@ def answer_question(
         if contacted:
             metadata["providers_contacted"] = contacted
 
+    # The listing must be about what was asked. A symptom message is already narrowed by
+    # build_bundle, so only other questions are filtered here.
+    listed = bundle.items if verdict.symptom else relevant_items(bundle.items, question)
+    if not listed:
+        text = NO_MATCH_UNAVAILABLE_TEXT if unavailable else NO_MATCH_TEXT
+        return Answer(
+            _with_footer(text, bundle, False),
+            "no_data",
+            {**metadata, "mode": "canned"},
+        )
+    shown = ev.Bundle(items=listed, categories=bundle.categories)
     if metadata["mode"] != "fallback":
         intro = LISTING_INTRO
     else:
         intro = UNAVAILABLE_INTRO if unavailable else FALLBACK_INTRO
-    body = f"{intro}\n{ev.render_evidence_only(bundle.items)}"
+    body = f"{intro}\n{ev.render_evidence_only(listed)}"
     return Answer(
-        _with_footer(body, bundle, verdict.effect_question, verdict.symptom),
+        _with_footer(body, shown, verdict.effect_question, verdict.symptom),
         "fallback" if metadata["mode"] == "fallback" else "evidence_only",
         metadata,
-        bundle.items,
-        set(bundle.refs),
+        listed,
+        set(shown.refs),
     )
 
 

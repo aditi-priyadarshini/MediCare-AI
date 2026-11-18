@@ -509,3 +509,9 @@ Migration `0008_admin_release`:
 - `alembic check` reports no drift between models and migrations.
 
 Migration `0009_ai_provider_chain`: `chat_context_access_logs.provider` widened to 128 characters so a failover chain can list every vendor that was sent the evidence (comma-separated).
+
+## Reminder calls (migration 0011)
+
+- `devices(id, user_id -> users, platform android|ios, push_token UNIQUE, voip_token, app_version, last_seen_at, revoked_at)`. One row per installed phone app; a token moves to whichever account signs in on that phone.
+- `reminder_calls(id, patient_user_id -> users, device_id -> devices SET NULL, dose_log_id -> dose_logs, dedupe_key, attempt >= 1, status ringing|answered|completed|declined|missed|failed, ring_expires_at, answered_at, ended_at, end_reason, media_connected_at, error_detail)`. `UNIQUE (patient_user_id, dedupe_key)` makes ringing idempotent. A call row never changes `dose_logs`.
+- The consent type `reminder_call` is a value in `user_consents`; no schema change.

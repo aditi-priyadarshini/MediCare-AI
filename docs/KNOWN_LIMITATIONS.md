@@ -23,3 +23,7 @@
 - Caregiver delegation, doctor-side accounts, real notifications to clinics and adverse-event review by administrators are not built.
 - AI provider adapters are tested against a fake HTTP layer, not live vendor APIs; vendor request formats and model names change, so run the admin Test button after configuring.
 - Provider health counters live in process memory (per instance, reset on restart).
+
+## Reminder calls (WebRTC)
+- Optional and off by default. The backend rules are covered by tests; the push adapters (FCM, APNs VoIP), aiortc media, TURN and the phone app were **not run against real services or devices**. See `docs/REMINDER_CALLS.md` for the full list, including app-store policy and Android battery-optimisation caveats.
+- Spoken text is English; there is no two-way audio; only the most recently used phone rings; refill and expiry alerts don't ring.
