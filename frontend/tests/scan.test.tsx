@@ -129,10 +129,11 @@ describe("ScanCapture", () => {
   });
 
   it("says why a scan failed and keeps nothing", async () => {
-    api.mockImplementation(async (path: string) => {
-      if (path === "/records/scan/status") return { available: true, photos: true, pdf_text: true, scanned_pdf: true };
-      throw new ApiError(422, "IMAGE_UNREADABLE", "This image could not be opened.", []);
-    });
+    api.mockImplementation((path: string) =>
+      path === "/records/scan/status"
+        ? Promise.resolve({ available: true, photos: true, pdf_text: true, scanned_pdf: true })
+        : Promise.reject(new ApiError(422, "IMAGE_UNREADABLE", "This image could not be opened.", [])),
+    );
     const onScanned = vi.fn();
     render(<ScanCapture onScanned={onScanned} />);
     await screen.findByRole("button", { name: /take a photo/i });
@@ -187,10 +188,10 @@ describe("LabImport", () => {
   });
 
   it("says so when the report was kept but the results were not saved", async () => {
-    api.mockImplementation(async (path: string) => {
-      if (path === "/records") return { id: "new-rec" };
-      if (path === "/records/new-rec/file") return { id: "new-rec" };
-      throw new ApiError(409, "LIMIT_REACHED", "You can save up to 2000 results.", []);
+    api.mockImplementation((path: string) => {
+      if (path === "/records") return Promise.resolve({ id: "new-rec" });
+      if (path === "/records/new-rec/file") return Promise.resolve({ id: "new-rec" });
+      return Promise.reject(new ApiError(409, "LIMIT_REACHED", "You can save up to 2000 results.", []));
     });
     const onDone = vi.fn();
     render(<LabImport scan={scan()} file={new File(["x"], "r.png", { type: "image/png" })} onDone={onDone} onCancel={vi.fn()} />);
