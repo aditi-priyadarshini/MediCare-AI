@@ -385,6 +385,17 @@ def test_a_provider_failure_falls_back_to_the_records(alice, llm, db):
     assert stored_assistant_message(db).model_metadata["rejected"] == ["provider_unavailable"]
 
 
+def test_an_unrelated_question_does_not_dump_every_record(alice, llm):
+    grant(alice)
+    lab(alice, 7.4, "2026-04-12")
+    med(alice)
+    llm.reply = LLMUnavailable("down")
+    chat = new_chat(alice, labs=True, medicines=True)
+    m = answer(alice, chat, "tell me a joke about the weather")
+    assert m["safety_classification"] == "no_data"
+    assert "HbA1c" not in m["content"] and m["evidence"] == []
+
+
 # -------------------------------------------------------------------- prompt injection
 def test_instruction_like_text_in_records_never_reaches_the_model(alice, llm):
     grant(alice)
