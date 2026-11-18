@@ -89,7 +89,7 @@ def _post(provider: str, url: str, headers: dict, body: dict, timeout: float) ->
         raise LLMUnavailable(
             f"{provider} request failed (HTTP {exc.response.status_code})."
         ) from exc
-    except (httpx.HTTPError, ValueError) as exc:
+    except Exception as exc:  # noqa: BLE001 - httpx.InvalidURL, encoding errors, proxies...
         raise LLMUnavailable(f"{provider} request failed ({type(exc).__name__}).") from exc
     if not isinstance(data, dict):
         raise LLMUnavailable(f"{provider} returned an unexpected response.")
@@ -122,8 +122,8 @@ class AnthropicProvider:
             self._timeout,
         )
         parts = [
-            block.get("text", "")
-            for block in data.get("content", [])
+            str(block.get("text") or "")
+            for block in (data.get("content") or [])
             if isinstance(block, dict) and block.get("type") == "text"
         ]
         text = _clean("".join(parts))
@@ -175,7 +175,7 @@ class OpenAICompatibleProvider:
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMUnavailable(f"{self.name} returned an unexpected response.") from exc
         if isinstance(content, list):  # some servers return content parts
-            content = "".join(p.get("text", "") for p in content if isinstance(p, dict))
+            content = "".join(str(p.get("text") or "") for p in content if isinstance(p, dict))
         text = _clean(content) if isinstance(content, str) else ""
         if not text:
             raise LLMUnavailable(f"{self.name} returned no text.")
@@ -220,7 +220,15 @@ class GeminiProvider:
         except (KeyError, IndexError, TypeError) as exc:
             # Includes prompt blocked by the vendor's own filters: treated as "no answer".
             raise LLMUnavailable(f"{self.name} returned no answer.") from exc
-        text = _clean("".join(p.get("text", "") for p in parts if isinstance(p, dict)))
+        # Skip "thought" parts (reasoning summaries): they are not the answer. A part with no
+        # text (null, or a function call) contributes nothing instead of crashing the join.
+        text = _clean(
+            "".join(
+                str(p.get("text") or "")
+                for p in parts
+                if isinstance(p, dict) and not p.get("thought")
+            )
+        )
         if not text:
             raise LLMUnavailable(f"{self.name} returned no text.")
         return LLMResult(text, str(data.get("modelVersion") or self.model), self.name)
@@ -301,7 +309,9 @@ class FailoverProvider:
             attempted.append(member.name)
             try:
                 result = member.complete(system=system, user=user, max_tokens=max_tokens)
-            except LLMUnavailable as exc:
+            except Exception as exc:  # noqa: BLE001 - a vendor must never turn into a 500
+                if not isinstance(exc, LLMUnavailable):
+                    exc = LLMUnavailable(f"{member.name} failed ({type(exc).__name__}).")
                 self._record(member.name, str(exc))
                 # Operators need to see why the assistant fell back; the message is already
                 # scrubbed of keys, URLs and prompt text.
@@ -320,9 +330,14 @@ class FailoverProvider:
             member.complete(
                 system="Reply with the single word OK.", user="Connectivity check.", max_tokens=16
             )
-        except LLMUnavailable as exc:
-            self._record(name, str(exc))
-            return False, str(exc)
+        except Exception as exc:  # noqa: BLE001
+            msg = (
+                str(exc)
+                if isinstance(exc, LLMUnavailable)
+                else f"{name} failed ({type(exc).__name__})."
+            )
+            self._record(name, msg)
+            return False, msg
         self._record(name, None)
         return True, None
 

@@ -1,18 +1,22 @@
 """Phone-app devices, reminder calls and signalling (see docs/REMINDER_CALLS.md)."""
 
+import logging
+import time
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Query, Request, WebSocket
+from fastapi import APIRouter, BackgroundTasks, Query, Request, WebSocket
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbDep, SettingsDep
 from app.audit import service as audit
 from app.calls import service as svc
 from app.calls.models import Device, ReminderCall
+from app.calls.push import PushError, Target, build_push_provider
 from app.calls.schemas import (
     AcceptOut,
     CallOut,
+    DevTestIn,
     DeviceIn,
     DeviceOut,
     DoseBrief,
@@ -23,6 +27,7 @@ from app.core.errors import AppError
 from app.core.ratelimit import enforce
 
 router = APIRouter(tags=["calls"])
+log = logging.getLogger("app.calls.router")
 
 
 def _now() -> datetime:
@@ -112,6 +117,67 @@ def list_calls(user: CurrentUser, db: DbDep, limit: int = Query(20, ge=1, le=100
 @router.get("/calls/ice-servers", response_model=IceOut)
 def get_ice_servers(user: CurrentUser, settings: SettingsDep):
     return IceOut(ice_servers=svc.ice_servers(settings, user.id, _now()))
+
+
+def _push_after_delay(sessionmaker, settings, call_id: uuid.UUID, delay: int) -> None:
+    """Background task for the development helper: wait, then send the real push."""
+    if delay:
+        time.sleep(delay)
+    with sessionmaker() as db:
+        call = db.get(ReminderCall, call_id)
+        device = db.get(Device, call.device_id) if call and call.device_id else None
+        if call is None or device is None or call.status != "ringing":
+            return
+        now = _now()
+        try:
+            build_push_provider(settings).send_call(
+                Target(device.platform, device.push_token, device.voip_token),
+                str(call.id),
+                settings.call_ring_seconds,
+            )
+        except PushError as exc:
+            call.status, call.end_reason, call.ended_at = "failed", "push_failed", now
+            call.error_detail = exc.reason[:200]
+            if exc.permanent:
+                device.revoked_at = now
+            log.warning("dev_test_push_failed", extra={"event": exc.reason[:60]})
+        except Exception as exc:  # noqa: BLE001 - report, never crash the worker thread
+            call.status, call.end_reason, call.ended_at = "failed", "push_failed", now
+            call.error_detail = type(exc).__name__
+            log.warning("dev_test_push_failed", extra={"event": type(exc).__name__})
+        db.commit()
+
+
+@router.post("/calls/dev/test", response_model=CallOut, status_code=201)
+def dev_test_call(
+    body: DevTestIn,
+    request: Request,
+    background: BackgroundTasks,
+    user: CurrentUser,
+    db: DbDep,
+    settings: SettingsDep,
+):
+    """DEVELOPMENT ONLY: ring the signed-in patient's own phone for a throw-away dose, so the
+    app and the WebRTC audio can be tested without waiting for a schedule. Answers 404 unless
+    ENVIRONMENT=development and CALLS_ENABLED=true, so it does not exist in production."""
+    if settings.environment != "development" or not settings.calls_enabled:
+        raise svc.not_found()
+    enforce(request, "dev-test-call", str(user.id), 30, 3600)
+    delay = body.delay_seconds if body.mode == "push" else 0
+    call, device = svc.make_test_call(db, user.id, _now(), settings, delay)
+    if body.mode == "push":
+        if device is None:
+            raise AppError(
+                409,
+                "NO_DEVICE",
+                "This phone has not registered for push yet. Sign in on the phone first.",
+            )
+        background.add_task(
+            _push_after_delay, request.app.state.sessionmaker, settings, call.id, delay
+        )
+    audit.record(db, "call.dev_test", request, user.id, "reminder_call", call.id)
+    db.commit()
+    return _call_out(call)
 
 
 @router.get("/calls/{call_id}", response_model=CallOut)

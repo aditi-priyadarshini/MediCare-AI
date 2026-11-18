@@ -1,0 +1,10 @@
+node_modules/
+android/
+ios/
+.expo/
+dist/
+*.apk
+*.aab
+*.keystore
+# google-services.json is a client config, not a secret, and EAS cloud builds need it uploaded.
+# The Firebase SERVICE ACCOUNT json (used by the server) must never be committed: keep it in ../secrets

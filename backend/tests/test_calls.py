@@ -387,3 +387,9 @@ def test_production_requires_turn_when_calls_are_on():
         )
 
 
+
+
+def test_dev_test_call_does_not_exist_outside_development(alice):
+    """The helper answers 404 unless ENVIRONMENT=development (these tests run as 'test')."""
+    r = alice.post("/calls/dev/test", json={"mode": "direct"})
+    assert r.status_code == 404

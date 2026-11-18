@@ -184,13 +184,9 @@ def _card(c: cmp.Composition, names: dict[str, eng.Ingredient], prices) -> Medic
     )
 
 
-@router.get("/medicines/{medicine_id}/alternatives", response_model=AlternativesOut)
-def alternatives(medicine_id: uuid.UUID, user: CurrentUser, db: DbDep):
+def build_alternatives(db: Session, medicine: Medicine) -> AlternativesOut:
     """Candidates with the same ingredients, strengths, form, route and release type, with
-    sourced, dated prices where they exist. Candidates are not substitutes."""
-    medicine = db.get(Medicine, medicine_id)
-    if medicine is None:
-        raise svc.not_found()
+    sourced, dated prices where they exist. Also used by the AI generics finder."""
     source = svc.compositions(db, [medicine])[0]
     ing_ids = {uuid.UUID(c.ingredient_id) for c in source.components}
     pool = svc.compositions(db, svc.candidate_pool(db, ing_ids))
@@ -210,6 +206,16 @@ def alternatives(medicine_id: uuid.UUID, user: CurrentUser, db: DbDep):
         notice=cmp.CANDIDATE_NOTE,
         price_notice=cmp.PRICE_NOTE,
     )
+
+
+@router.get("/medicines/{medicine_id}/alternatives", response_model=AlternativesOut)
+def alternatives(medicine_id: uuid.UUID, user: CurrentUser, db: DbDep):
+    """Candidates with the same ingredients, strengths, form, route and release type, with
+    sourced, dated prices where they exist. Candidates are not substitutes."""
+    medicine = db.get(Medicine, medicine_id)
+    if medicine is None:
+        raise svc.not_found()
+    return build_alternatives(db, medicine)
 
 
 # ------------------------------------------------------------------------- authenticity

@@ -24,6 +24,13 @@
 - AI provider adapters are tested against a fake HTTP layer, not live vendor APIs; vendor request formats and model names change, so run the admin Test button after configuring.
 - Provider health counters live in process memory (per instance, reset on restart).
 
+## AI safety review and generics (added after Phase 9)
+- The AI's medical statements (interactions, contraindications, allergy cross-reactions, side effects, generic product lists) come from a general-purpose model and have **not** been reviewed by a clinician. They are labelled as such and can be wrong or incomplete; "nothing reported" is not "safe".
+- **AI prices are estimates only.** A model has no access to real prices. They are shown as ranges for a stated pack, are not sourced or dated, and may be far from what a pharmacy charges. Treat them as a prompt to ask a pharmacist, not as a quote.
+- A suggested generic is checked only for matching active ingredients, strength and form (no unit conversion). Fillers, dyes and bioequivalence are not assessed.
+- Brand names are model recall for the Indian market and can be out of date or wrong; products the server cannot match are discarded, which can also hide a real one.
+- Not verified against a live provider; every run makes model calls (no caching), so cost and latency grow with the number of medicines (reviews are capped at 12 medicines, generics at 8).
+
 ## Reminder calls (WebRTC)
 - Optional and off by default. The backend rules are covered by tests; the push adapters (FCM, APNs VoIP), aiortc media, TURN and the phone app were **not run against real services or devices**. See `docs/REMINDER_CALLS.md` for the full list, including app-store policy and Android battery-optimisation caveats.
 - Spoken text is English; there is no two-way audio; only the most recently used phone rings; refill and expiry alerts don't ring.

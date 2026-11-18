@@ -80,8 +80,13 @@ seconds, the app reads the same text with the phone's own voice, so the reminder
 
 ## Phone app
 
-See `mobile/README.md`. It is an Expo (React Native) app with native modules, so it needs a
-development build, not Expo Go.
+See `mobile/ANDROID_SETUP_AND_TEST.md` (Android only; it needs a native build, not Expo Go).
+
+## Testing without waiting for a dose
+
+With `ENVIRONMENT=development` and `CALLS_ENABLED=true` the server also offers
+`POST /calls/dev/test` (404 anywhere else). `python -m app.scripts.call_smoke` uses it to act as a
+phone and check signalling, voice and audio; the app's Settings screen uses it for the test buttons.
 
 ## Known limitations (read before relying on this)
 

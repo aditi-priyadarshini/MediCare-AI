@@ -57,3 +57,16 @@ class AcceptOut(BaseModel):
 
 class IceOut(BaseModel):
     ice_servers: list[dict]
+
+
+class DevTestIn(BaseModel):
+    """Development-only request to make a phone ring without waiting for a real dose.
+
+    mode "direct": only create the call; the app opens it straight away (tests WebRTC and the
+                   spoken reminder, no Firebase needed).
+    mode "push":   create the call and send the real push after `delay_seconds`, so you can lock
+                   the phone or close the app first (tests FCM + the ringing screen)."""
+
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["direct", "push"] = "direct"
+    delay_seconds: int = Field(default=0, ge=0, le=60)

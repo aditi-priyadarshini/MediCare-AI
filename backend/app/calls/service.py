@@ -183,3 +183,56 @@ def end(call: ReminderCall, now: datetime) -> None:
 def mark_media_connected(call: ReminderCall, now: datetime) -> None:
     if call.media_connected_at is None:
         call.media_connected_at = now
+
+
+# ------------------------------------------------------------------------------- dev helper
+TEST_MEDICATION_NAME = "Test reminder (safe to ignore)"
+
+
+def make_test_call(
+    db: Session, user_id: uuid.UUID, now: datetime, settings: Settings, delay_seconds: int = 0
+) -> tuple[ReminderCall, Device | None]:
+    """DEVELOPMENT ONLY (the router refuses elsewhere). Makes one ringing call for a throw-away
+    pending dose so the phone app and WebRTC path can be tried without waiting for a real
+    schedule. The medication is created 'stopped' so it never shows in the patient's list and
+    the worker never rings it by itself. Like every call, it does not change the dose: the
+    patient still has to tap the button."""
+    med = db.scalar(
+        select(Medication).where(
+            Medication.patient_user_id == user_id,
+            Medication.display_name == TEST_MEDICATION_NAME,
+        )
+    )
+    if med is None:
+        med = Medication(
+            patient_user_id=user_id,
+            display_name=TEST_MEDICATION_NAME,
+            dose_text="1 tablet",
+            basis="self_reported",
+            status="stopped",
+        )
+        db.add(med)
+        db.flush()
+    dose = DoseLog(
+        patient_user_id=user_id, medication_id=med.id, scheduled_at=now, status="pending"
+    )
+    db.add(dose)
+    db.flush()
+    device = db.scalar(
+        select(Device)
+        .where(Device.user_id == user_id, Device.revoked_at.is_(None))
+        .order_by(Device.last_seen_at.desc())
+        .limit(1)
+    )
+    call = ReminderCall(
+        patient_user_id=user_id,
+        device_id=device.id if device else None,
+        dose_log_id=dose.id,
+        dedupe_key=f"devtest:{uuid.uuid4()}",
+        attempt=1,
+        status="ringing",
+        ring_expires_at=now + timedelta(seconds=delay_seconds + settings.call_ring_seconds),
+    )
+    db.add(call)
+    db.flush()
+    return call, device
