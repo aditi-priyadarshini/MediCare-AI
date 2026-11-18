@@ -36,7 +36,9 @@ const scan = (over: Partial<ScanResult> = {}): ScanResult => ({
   ...over,
 });
 
-beforeEach(() => api.mockReset());
+beforeEach(() => {
+  api.mockReset();
+});
 
 describe("applyScanToRecord", () => {
   const form = { record_type: "other" as const, title: "typed by me", record_date: "", provider_name: "", notes: "keep" };
