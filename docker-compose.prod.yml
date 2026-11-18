@@ -52,10 +52,13 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health/ready')"]
+      # A small server can take several seconds to answer while it warms up, so allow it time
+      # instead of marking the container unhealthy on the first slow reply.
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health/ready', timeout=15)"]
       interval: 10s
-      timeout: 3s
-      retries: 6
+      timeout: 20s
+      retries: 10
+      start_period: 40s
 
   worker:
     image: ${IMAGE_PREFIX:?}/medicare-ai-backend:${IMAGE_TAG:-latest}
