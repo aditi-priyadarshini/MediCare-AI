@@ -72,7 +72,8 @@ async def run(server: str, email: str, password: str, frames_needed: int, timeou
             done.set()
 
         await pc.setLocalDescription(await pc.createOffer())  # aiortc finishes ICE gathering here
-        ws_url = server.rstrip("/").replace("http", "ws", 1) + acc["ws_path"] + f"?ticket={acc['ticket']}"
+        ws_base = server.rstrip("/").replace("http", "ws", 1)
+        ws_url = ws_base + acc["ws_path"] + f"?ticket={acc['ticket']}"
         try:
             async with connect(ws_url) as ws:
                 await ws.send(json.dumps({"type": "offer", "sdp": pc.localDescription.sdp}))
@@ -88,7 +89,9 @@ async def run(server: str, email: str, password: str, frames_needed: int, timeou
                     msg = json.loads(raw)
                     if msg["type"] == "answer" and not answered:
                         answered = True
-                        await pc.setRemoteDescription(RTCSessionDescription(sdp=msg["sdp"], type="answer"))
+                        await pc.setRemoteDescription(
+                            RTCSessionDescription(sdp=msg["sdp"], type="answer")
+                        )
                         print("ok   WebRTC answer received")
                     elif msg["type"] == "info" and msg.get("code") == "TTS_UNAVAILABLE":
                         got["tts_missing"] = True
@@ -103,7 +106,8 @@ async def run(server: str, email: str, password: str, frames_needed: int, timeou
                     return 1
                 if not got["tts_missing"]:
                     try:
-                        await asyncio.wait_for(done.wait(), timeout=max(1, end - asyncio.get_event_loop().time()))
+                        left = max(1, end - asyncio.get_event_loop().time())
+                        await asyncio.wait_for(done.wait(), timeout=left)
                     except TimeoutError:
                         pass
                 await ws.send(json.dumps({"type": "bye"}))
@@ -114,7 +118,10 @@ async def run(server: str, email: str, password: str, frames_needed: int, timeou
 
         print(f"     connection state: {state}; audio frames received: {got['frames']}")
         if got["tts_missing"]:
-            print("PARTIAL signalling works, but no server voice. Set TTS_COMMAND (see ANDROID_SETUP_AND_TEST.md).")
+            print(
+                "PARTIAL signalling works, but no server voice. "
+                "Set TTS_COMMAND (see ANDROID_SETUP_AND_TEST.md)."
+            )
             return 2
         if got["frames"] >= frames_needed:
             print("PASS server-side reminder call works: audio reached the simulated phone.")
@@ -125,7 +132,9 @@ async def run(server: str, email: str, password: str, frames_needed: int, timeou
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--server", default="http://localhost:8000")
     ap.add_argument("--email", required=True)
     ap.add_argument("--frames", type=int, default=25, help="audio frames to wait for (20 ms each)")

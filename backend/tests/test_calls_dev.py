@@ -56,7 +56,8 @@ def test_the_test_medicine_never_appears_in_the_patients_list(alice):
     alice.post("/calls/dev/test", json={})
     alice.post("/calls/dev/test", json={})  # reused, not duplicated
     assert alice.get("/medications").json()["items"] == []
-    names = {m["display_name"] for m in alice.get("/medications?include_inactive=true").json()["items"]}
+    items = alice.get("/medications?include_inactive=true").json()["items"]
+    names = {m["display_name"] for m in items}
     assert len(names) == 1
 
 
@@ -87,7 +88,8 @@ def test_a_failed_push_is_recorded_not_faked(alice, db, memory_push):
 
 
 def test_delay_is_bounded(alice):
-    assert alice.post("/calls/dev/test", json={"mode": "push", "delay_seconds": 600}).status_code == 422
+    r = alice.post("/calls/dev/test", json={"mode": "push", "delay_seconds": 600})
+    assert r.status_code == 422
 
 
 def test_needs_login(app):
