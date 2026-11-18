@@ -86,5 +86,9 @@ def test_from_settings_passes_zoho_values():
     )
     p = SmtpEmailProvider.from_settings(s)
     assert (p.host, p.port, p.username, p.password, p.security) == (
-        "smtp.zoho.in", 465, "u@x.com", "pw", "ssl",
+        "smtp.zoho.in",
+        465,
+        "u@x.com",
+        "pw",
+        "ssl",
     )
