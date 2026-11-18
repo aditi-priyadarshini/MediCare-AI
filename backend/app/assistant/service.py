@@ -87,6 +87,10 @@ _CATEGORY_WORDS = {
 }  # fmt: skip
 
 
+# Words that ask for the whole listing rather than one record ("What is on my list?").
+_LIST_ALL = {"list", "everything", "summary", "summarise", "summarize", "overview", "recorded"}
+
+
 def _stem(word: str) -> str:
     return word[:-1] if word.endswith("s") and len(word) > 3 else word
 
@@ -95,10 +99,13 @@ def relevant_items(items: list[ev.EvidenceItem], question: str) -> list[ev.Evide
     """For the plain record listing only: keep the items the question is about.
 
     An item is kept when the question names it (a test, medicine, condition or allergy) or
-    names its kind of record ("medicines", "doses", "history"). Reference notes were already
-    chosen by name, so they stay. A question that matches nothing ("i want to shit") keeps
+    names its kind of record ("medicines", "doses", "history"). A request for the whole list
+    ("what is on my list?", "summarise everything") keeps everything. Reference notes were
+    already chosen by name, so they stay. A question that matches nothing ("i want to shit") keeps
     nothing, so the listing does not dump every record on an unrelated message."""
     q = {_stem(w) for w in _WORD.findall(policy.normalize(question))}
+    if q & {_stem(w) for w in _LIST_ALL}:
+        return list(items)
     kinds = {k for k, words in _CATEGORY_WORDS.items() if q & {_stem(w) for w in words}}
     kept = []
     for it in items:
