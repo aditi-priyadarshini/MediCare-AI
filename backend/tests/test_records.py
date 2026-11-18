@@ -304,9 +304,12 @@ def _report_png() -> bytes:
     return out.getvalue()
 
 
-@pytest.fixture(autouse=True)
-def _roomy_uploads(app):
-    """The suite caps uploads at 1 KB; a rendered report photo is larger than that."""
+@pytest.fixture
+def roomy_uploads(app):
+    """The suite caps uploads at 1 KB; a rendered report photo is larger than that.
+
+    Opt-in (not autouse) so the upload-size tests above keep the 1 KB cap.
+    """
     app.state.settings.max_upload_bytes = 2 * 1024 * 1024
 
 
@@ -318,11 +321,13 @@ def _ocr_ready(alice) -> bool:
     return alice.get("/records/scan/status").json()["photos"]
 
 
+@pytest.mark.usefixtures("roomy_uploads")
 def test_scan_status_is_reported(alice):
     body = alice.get("/records/scan/status").json()
     assert set(body) == {"available", "photos", "pdf_text", "scanned_pdf"}
 
 
+@pytest.mark.usefixtures("roomy_uploads")
 def test_scan_reads_a_photo_and_saves_nothing(alice, db):
     if not _ocr_ready(alice):
         pytest.skip("Tesseract is not installed")
@@ -343,6 +348,7 @@ def test_scan_reads_a_photo_and_saves_nothing(alice, db):
     assert db.scalar(select(AuditLog).where(AuditLog.action == "record.scan")) is not None
 
 
+@pytest.mark.usefixtures("roomy_uploads")
 def test_scan_audit_holds_counts_never_text(alice, db):
     if not _ocr_ready(alice):
         pytest.skip("Tesseract is not installed")
@@ -353,6 +359,7 @@ def test_scan_audit_holds_counts_never_text(alice, db):
     assert "Hemoglobin" not in str(meta)
 
 
+@pytest.mark.usefixtures("roomy_uploads")
 def test_scan_rejects_bad_uploads(alice):
     assert _scan(alice, b"").status_code == 422
     assert _scan(alice, b"just text, not a document").status_code == 415
@@ -362,6 +369,7 @@ def test_scan_rejects_bad_uploads(alice):
     )  # unreadable image, or no OCR installed here
 
 
+@pytest.mark.usefixtures("roomy_uploads")
 def test_scan_requires_a_verified_signed_in_user(app, outbox, make_actor):
     from tests.conftest import Actor
 
@@ -372,6 +380,7 @@ def test_scan_requires_a_verified_signed_in_user(app, outbox, make_actor):
     assert _scan(unverified, PNG).status_code == 403
 
 
+@pytest.mark.usefixtures("roomy_uploads")
 def test_scan_is_rate_limited(app, alice):
     if not _ocr_ready(alice):
         pytest.skip("Tesseract is not installed")
