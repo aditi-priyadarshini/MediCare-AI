@@ -22,8 +22,12 @@ MAX_ANSWER_CHARS = 1800
 _CITE = re.compile(r"\[E(\d+)\]")
 
 _ADVICE = [
+    # "take" alone is advice ("you should take 2"), but "take advice / take this to your
+    # pharmacist" is exactly what we want the model to say, so those are not matched.
     r"\byou (should|must|need to|ought to|have to) (now )?(stop|start|begin|increase|decrease|"
-    r"reduce|raise|lower|double|halve|skip|switch|change|take)\b",
+    r"reduce|raise|lower|double|halve|skip|switch|change|"
+    r"take(?! (advice|care|a look|a note|note of|your time|a moment|this|these|that|it to|"
+    r"them to|the records)))\b",
     r"(?<!not )(?<!n't )(?<!never )\b(increase|decrease|reduce|double|halve|raise|lower) "
     r"(your|the) (dose|dosage)\b",
     r"\b(i|we) (recommend|suggest|advise|prescribe)\b",
@@ -35,6 +39,7 @@ _ADVICE = [
     r"\bbecause (of )?(your|the) (medicine|medication|tablet|pill|drug)\b",
 ]
 _ADVICE_RE = [re.compile(p, re.IGNORECASE) for p in _ADVICE]
+ADVICE_PATTERNS = _ADVICE_RE  # reused by other modules that screen model wording
 
 
 @dataclass(frozen=True)

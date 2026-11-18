@@ -217,3 +217,28 @@ export const EXPLAIN_MODE_TEXT: Record<ExplainMode, string> = {
   fallback: "The AI draft did not pass our checks, so this is a plain summary of the findings.",
   consent_required: "AI is switched off for your records, so nothing was sent anywhere.",
 };
+
+export const AI_PAIR_LABEL: Record<string, string> = {
+  major: "AI: major",
+  moderate: "AI: moderate",
+  minor: "AI: minor",
+  none_reported: "AI: none reported",
+  unknown: "AI: not sure",
+};
+
+export const AI_PAIR_CHIP: Record<string, string> = {
+  major: "bg-danger-100 text-danger-700",
+  moderate: "bg-amber-100 text-amber-600",
+  minor: "bg-info-100 text-info-700",
+  none_reported: "bg-info-100 text-info-700",
+  unknown: "bg-info-100 text-info-700",
+};
+
+/** Pairs that need a look first; "none reported" and "not sure" go in a collapsed list. */
+export function splitPairs<T extends { state: string }>(
+  pairs: T[],
+): { shown: T[]; quiet: T[] } {
+  const quiet = (p: T) =>
+    p.state === "ai_none_reported" || p.state === "ai_unsure";
+  return { shown: pairs.filter((p) => !quiet(p)), quiet: pairs.filter(quiet) };
+}

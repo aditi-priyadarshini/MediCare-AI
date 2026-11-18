@@ -1,9 +1,11 @@
 "use client";
 
-import { FlaskConical, Plus } from "lucide-react";
+import { FlaskConical, Plus, ScanLine } from "lucide-react";
 import { useState } from "react";
 import { LabForm } from "@/components/records/LabForm";
+import { LabImport } from "@/components/records/LabImport";
 import { LabResultCard, LabResultsTable } from "@/components/records/LabResultCard";
+import { ScanCapture } from "@/components/records/ScanCapture";
 import { TrendChart } from "@/components/records/TrendChart";
 import { ConfirmationDialog } from "@/components/ui/Dialog";
 import { Drawer } from "@/components/ui/Drawer";
@@ -13,6 +15,7 @@ import { Alert, Button, Card, EmptyState, Skeleton } from "@/components/ui/primi
 import { api, errorMessage } from "@/lib/api-client";
 import { TABLE_QUERY, useAsync, useMediaQuery } from "@/lib/hooks";
 import { comparableTrend, FLAG_LABEL, formatDate, formatLabValue, NO_COMPARABLE_HISTORY } from "@/lib/records";
+import { scanStatus, type ScanResult } from "@/lib/scan";
 import type { LabResult, LabTestSummary, LabTrend, Page } from "@/lib/types";
 
 type View = "test" | "all";
@@ -37,6 +40,9 @@ export function LabsSection() {
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<LabResult | null>(null);
   const [adding, setAdding] = useState(false);
+  const canScan = useAsync(scanStatus, []); // the button is only shown when this server can read reports
+  const [scanning, setScanning] = useState(false);
+  const [scanned, setScanned] = useState<{ file: File; result: ScanResult } | null>(null);
   const [removing, setRemoving] = useState<LabResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -86,11 +92,45 @@ export function LabsSection() {
         interpret results or tell you whether a value is healthy. Talk to your doctor about what yours mean.
       </Alert>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        {canScan.data?.available && (
+          <Button variant="secondary" onClick={() => setScanning(true)}>
+            <ScanLine className="h-4 w-4" aria-hidden /> Scan a report
+          </Button>
+        )}
         <Button onClick={() => setAdding(true)}>
           <Plus className="h-4 w-4" aria-hidden /> Add result
         </Button>
       </div>
+
+      <Drawer
+        open={scanning}
+        onClose={() => {
+          setScanning(false);
+          setScanned(null);
+        }}
+        title={scanned ? "Check the results" : "Scan a lab report"}
+        closeLabel="Close scan"
+        className="sm:w-[34rem]"
+      >
+        {scanned ? (
+          <LabImport
+            key={scanned.file.name + scanned.file.size}
+            scan={scanned.result}
+            file={scanned.file}
+            onCancel={() => setScanned(null)}
+            onDone={async (saved) => {
+              setScanning(false);
+              setScanned(null);
+              if (saved[0]) setSelected(saved[0].test_name);
+              show(`${saved.length} result${saved.length === 1 ? "" : "s"} saved.`, "success");
+              await reloadAll();
+            }}
+          />
+        ) : (
+          <ScanCapture title="Scan a lab report" description="Take a photo of the report or choose a file. The tests, values, units and ranges are read for you to check, then saved together." onScanned={(file, result) => setScanned({ file, result })} />
+        )}
+      </Drawer>
 
       <Drawer open={adding} onClose={() => setAdding(false)} title="Add a result" closeLabel="Close add result" className="sm:w-[28rem]">
         <LabForm

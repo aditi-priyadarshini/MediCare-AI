@@ -272,8 +272,16 @@ def _reference_notes(db: Session, question: str) -> list[ev.ReferenceNote]:
 
 # --------------------------------------------------------------------------------- bundle
 def build_bundle(
-    db: Session, user, flags: Flags, question: str, now: datetime | None = None
+    db: Session,
+    user,
+    flags: Flags,
+    question: str,
+    now: datetime | None = None,
+    symptom: bool = False,
 ) -> ev.Bundle:
+    """``symptom`` narrows the bundle for a message like "my head hurts": the latest value of
+    every lab and the list of uploaded records say nothing about it and only bury the medicines,
+    doses and conditions that might, so they are left out unless a test is named."""
     now = now or datetime.now(UTC)
     refs = ev.Refs()
     items: list[ev.EvidenceItem] = []
@@ -285,9 +293,10 @@ def build_bundle(
     if flags.labs:
         points = _labs(db, user)
         wanted = ev.mentioned_tests(points, question)
-        lab_it, shown_labs = ev.lab_items(points, refs, wanted)
-        items += lab_it
-        categories.append("labs")
+        if wanted or not symptom:
+            lab_it, shown_labs = ev.lab_items(points, refs, wanted)
+            items += lab_it
+            categories.append("labs")
     if flags.medicines:
         meds = _meds(db, user)
         items += ev.medication_items(meds, refs)
@@ -299,7 +308,8 @@ def build_bundle(
         categories.append("doses")
     if flags.history:
         items += ev.condition_items(_conditions(db, user), refs)
-        items += ev.record_items(_records(db, user), refs)
+        if not symptom:
+            items += ev.record_items(_records(db, user), refs)
         categories.append("history")
     if flags.allergies:
         items += ev.allergy_items(_allergies(db, user), refs)

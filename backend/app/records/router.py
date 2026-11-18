@@ -15,6 +15,7 @@ from app.core.storage import LocalFileStore, safe_display_name, sniff_content_ty
 from app.records import service as svc
 from app.records.models import HealthRecord, LabResult
 from app.records.schemas import (
+    LabBulkIn,
     LabIn,
     LabOut,
     LabPatch,
@@ -368,6 +369,39 @@ def create_lab(body: LabIn, request: Request, user: CurrentUser, db: DbDep):
     )
     db.commit()
     return row
+
+
+@router.post("/labs/bulk", response_model=list[LabOut], status_code=201)
+def create_labs_bulk(body: LabBulkIn, request: Request, user: CurrentUser, db: DbDep):
+    """Save several confirmed results at once (the review step of a scan). All or none: one bad
+    row rejects the request and nothing is saved, so a half-imported report can't happen."""
+    if body.record_id is not None:
+        svc.owned_record_or_404(db, body.record_id, user)
+    count = db.scalar(
+        select(func.count()).select_from(LabResult).where(LabResult.patient_user_id == user.id)
+    )
+    if (count or 0) + len(body.items) > MAX_LABS_PER_PATIENT:
+        raise AppError(409, "LIMIT_REACHED", f"You can save up to {MAX_LABS_PER_PATIENT} results.")
+    rows = []
+    for item in body.items:
+        data = item.model_dump()
+        data["record_id"] = body.record_id
+        row = LabResult(patient_user_id=user.id, verification_status="patient_reported", **data)
+        svc.validate_lab_state(row)
+        svc.apply_flag(row)
+        rows.append(row)
+    db.add_all(rows)
+    db.flush()
+    record(
+        db,
+        "lab.bulk_create",
+        request,
+        actor_user_id=user.id,
+        resource_type="lab_result",
+        metadata={"count": len(rows), "linked_to_record": body.record_id is not None},
+    )
+    db.commit()
+    return rows
 
 
 @router.patch("/labs/{lab_id}", response_model=LabOut)

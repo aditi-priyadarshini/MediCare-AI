@@ -506,3 +506,36 @@ export interface AskResult {
   user_message: ChatMessage;
   assistant_message: ChatMessage;
 }
+
+export type AiPairSeverity =
+  "major" | "moderate" | "minor" | "none_reported" | "unknown";
+export type AiPairState =
+  "curated" | "ai_note" | "ai_none_reported" | "ai_unsure" | "not_checked";
+export type AiPairsMode =
+  | "ai"
+  | "partial"
+  | "consent_required"
+  | "ai_unavailable"
+  | "too_few"
+  | "too_many";
+export interface AiPair {
+  medication_a: string;
+  medication_b: string;
+  state: AiPairState;
+  curated: {
+    severity: string;
+    description: string;
+    guidance: string | null;
+    source: string;
+  }[];
+  ai_severity: AiPairSeverity | null;
+  ai_note: string | null;
+}
+export interface AiPairsResult {
+  mode: AiPairsMode;
+  message: string;
+  medicines: number;
+  pairs: AiPair[];
+  ai_label: string;
+  disclaimer: string;
+}

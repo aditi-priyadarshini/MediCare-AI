@@ -266,3 +266,150 @@ def test_archived_labs_leave_summaries_and_trends(alice):
     assert alice.get("/labs?include_archived=true").json()["total"] == 2
     assert len(alice.get("/labs/trend?test_name=Hemoglobin").json()["points"]) == 1
     assert alice.get("/labs/tests").json()[0]["count"] == 1
+
+
+# ------------------------------------------------------------------- scan to fill + bulk labs
+def _report_png() -> bytes:
+    """A synthetic lab report rendered as a photo-like PNG (needs Pillow; skipped without)."""
+    import io
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    font = None
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ):
+        try:
+            font = ImageFont.truetype(path, 26)
+            break
+        except OSError:
+            continue
+    if font is None:
+        pytest.skip("no TrueType font available to render a test report")
+    lines = [
+        "SUNRISE DIAGNOSTICS AND PATHOLOGY LAB",
+        "Sample Collected: 12/11/2026",
+        "COMPLETE BLOOD COUNT",
+        "Test Name      Result    Unit       Reference Range",
+        "Hemoglobin     11.2      g/dL       12.0 - 15.5",
+        "Creatinine     0.9       mg/dL      0.6 - 1.2",
+    ]
+    img = Image.new("RGB", (1100, 360), "white")
+    draw = ImageDraw.Draw(img)
+    for i, line in enumerate(lines):
+        draw.text((30, 20 + i * 44), line, fill="black", font=font)
+    out = io.BytesIO()
+    img.save(out, "PNG")
+    return out.getvalue()
+
+
+@pytest.fixture(autouse=True)
+def _roomy_uploads(app):
+    """The suite caps uploads at 1 KB; a rendered report photo is larger than that."""
+    app.state.settings.max_upload_bytes = 2 * 1024 * 1024
+
+
+def _scan(actor, data, name="photo.png"):
+    return actor.post("/records/scan", files={"file": (name, data, "image/png")})
+
+
+def _ocr_ready(alice) -> bool:
+    return alice.get("/records/scan/status").json()["photos"]
+
+
+def test_scan_status_is_reported(alice):
+    body = alice.get("/records/scan/status").json()
+    assert set(body) == {"available", "photos", "pdf_text", "scanned_pdf"}
+
+
+def test_scan_reads_a_photo_and_saves_nothing(alice, db):
+    if not _ocr_ready(alice):
+        pytest.skip("Tesseract is not installed")
+    out = _scan(alice, _report_png())
+    assert out.status_code == 200, out.text
+    body = out.json()
+    assert body["method"] == "ocr" and body["text_found"] is True
+    assert body["record"]["record_type"] == "lab_report"
+    assert body["record"]["record_date"] == "2026-11-12"
+    assert body["record"]["date_ambiguous"] is True  # 12/11 could be read either way
+    rows = {r["test_name"].lower(): r for r in body["labs"]}
+    hb = rows["hemoglobin"]
+    assert (hb["result"], hb["unit"], hb["ref_low"], hb["ref_high"]) == ("11.2", "g/dL", 12.0, 15.5)
+    assert any("Check every value" in w for w in body["warnings"])
+    # A scan is only a draft: no record, no lab result and no stored file came from it.
+    assert alice.get("/records").json()["total"] == 0
+    assert alice.get("/labs").json()["total"] == 0
+    assert db.scalar(select(AuditLog).where(AuditLog.action == "record.scan")) is not None
+
+
+def test_scan_audit_holds_counts_never_text(alice, db):
+    if not _ocr_ready(alice):
+        pytest.skip("Tesseract is not installed")
+    _scan(alice, _report_png())
+    row = db.scalar(select(AuditLog).where(AuditLog.action == "record.scan"))
+    meta = row.event_metadata
+    assert set(meta) == {"size", "content_type", "method", "pages", "lab_rows"}
+    assert "Hemoglobin" not in str(meta)
+
+
+def test_scan_rejects_bad_uploads(alice):
+    assert _scan(alice, b"").status_code == 422
+    assert _scan(alice, b"just text, not a document").status_code == 415
+    assert _scan(alice, b"\x89PNG\r\n\x1a\n" + b"not really an image").status_code in (
+        422,
+        503,
+    )  # unreadable image, or no OCR installed here
+
+
+def test_scan_requires_a_verified_signed_in_user(app, outbox, make_actor):
+    from tests.conftest import Actor
+
+    anon = Actor(app, outbox, "scan-anon@example.com")
+    assert anon.get("/records/scan/status").status_code == 401
+    unverified = make_actor(verified=False)
+    assert unverified.get("/records/scan/status").status_code == 403
+    assert _scan(unverified, PNG).status_code == 403
+
+
+def test_scan_is_rate_limited(app, alice):
+    if not _ocr_ready(alice):
+        pytest.skip("Tesseract is not installed")
+    app.state.settings.rate_limit_enabled = True
+    limit = app.state.settings.scan_requests_per_minute
+    codes = [_scan(alice, b"\x89PNG\r\n\x1a\nxx").status_code for _ in range(limit + 1)]
+    assert codes[-1] == 429
+
+
+def test_bulk_labs_save_all_with_server_flags_and_link(alice):
+    rid = alice.post("/records", json=REC).json()["id"]
+    items = [
+        HB,
+        {"test_name": "HIV", "value_text": "Non-reactive", "observed_on": "2026-11-01"},
+    ]
+    out = alice.post("/labs/bulk", json={"record_id": rid, "items": items})
+    assert out.status_code == 201, out.text
+    rows = out.json()
+    assert [r["flag"] for r in rows] == ["low", "unknown"]  # computed by the server
+    assert all(r["record_id"] == rid for r in rows)
+    assert all(r["verification_status"] == "patient_reported" for r in rows)
+    assert alice.get("/labs").json()["total"] == 2
+
+
+def test_bulk_labs_is_all_or_nothing(alice):
+    bad = {**HB, "test_name": "Bad range", "ref_low": 20.0, "ref_high": 10.0}
+    out = alice.post("/labs/bulk", json={"items": [HB, bad]})
+    assert out.status_code == 422
+    assert alice.get("/labs").json()["total"] == 0
+
+
+def test_bulk_labs_input_limits_and_server_controlled_fields(alice, bob):
+    assert alice.post("/labs/bulk", json={"items": []}).status_code == 422
+    assert alice.post("/labs/bulk", json={"items": [HB] * 61}).status_code == 422
+    for extra in ({"verification_status": "clinician_confirmed"}, {"flag": "normal"}):
+        assert alice.post("/labs/bulk", json={"items": [{**HB, **extra}]}).status_code == 422
+    # a row cannot name its own report; only the request can, and only one the caller owns
+    own_id = {**HB, "record_id": str(uuid.uuid4())}
+    assert alice.post("/labs/bulk", json={"items": [own_id]}).status_code == 422
+    theirs = bob.post("/records", json=REC).json()["id"]
+    assert alice.post("/labs/bulk", json={"record_id": theirs, "items": [HB]}).status_code == 404

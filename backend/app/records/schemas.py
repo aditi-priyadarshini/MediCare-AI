@@ -177,3 +177,56 @@ class LabTrend(BaseModel):
     ref_low: float | None
     ref_high: float | None
     points: list[TrendPoint]
+
+
+class LabBulkItem(LabIn):
+    """One row of a bulk save. The report link is set once on the request, not per row."""
+
+    record_id: None = None
+
+
+class LabBulkIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    record_id: uuid.UUID | None = None
+    items: list[LabBulkItem] = Field(min_length=1, max_length=60)
+
+
+# ------------------------------------------------------------------------------------ scan
+Confidence = Literal["high", "medium", "low"]
+
+
+class ScanStatus(BaseModel):
+    available: bool
+    photos: bool
+    pdf_text: bool
+    scanned_pdf: bool
+
+
+class ScanRecordDraft(BaseModel):
+    record_type: RecordType | None
+    title: str | None
+    record_date: date | None
+    date_ambiguous: bool
+    provider_name: str | None
+
+
+class ScanLabRow(BaseModel):
+    test_name: str
+    result: str
+    unit: str | None
+    ref_low: float | None
+    ref_high: float | None
+    confidence: Confidence
+    source_line: str
+
+
+class ScanOut(BaseModel):
+    """A draft to pre-fill forms with. Nothing here has been saved."""
+
+    method: Literal["pdf_text", "ocr", "pdf_ocr"]
+    pages_read: int
+    pages_total: int
+    text_found: bool
+    record: ScanRecordDraft
+    labs: list[ScanLabRow]
+    warnings: list[str]

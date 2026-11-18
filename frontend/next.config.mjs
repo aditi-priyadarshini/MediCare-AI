@@ -30,7 +30,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // geolocation and microphone are allowed for this origin only: Find care and Emergency ask for
   // location, and voice dictation asks for the microphone, each only after a button press.
-  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(self)" },
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self)" },
 ];
 
 const nextConfig = {

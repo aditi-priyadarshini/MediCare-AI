@@ -49,6 +49,16 @@ class Settings(BaseSettings):
     storage_dir: str = "./storage"
     max_upload_bytes: int = 10 * 1024 * 1024
 
+    # Scan-to-fill: read a photo or PDF of a report on this server (Tesseract, no third party) and
+    # pre-fill the record and lab forms. Nothing is stored by a scan; the patient reviews and saves.
+    scan_enabled: bool = True
+    tesseract_cmd: str = "tesseract"
+    ocr_languages: str = "eng"  # e.g. "eng+hin" if those Tesseract language packs are installed
+    scan_timeout_seconds: int = 45
+    scan_max_pages: int = 5
+    scan_max_pixels: int = 40_000_000
+    scan_requests_per_minute: int = 10
+
     # Reminder worker (python -m app.scripts.run_worker)
     worker_interval_seconds: int = 60
 

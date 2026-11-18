@@ -3,6 +3,7 @@
 import { FileText, Paperclip, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AddRecordForm } from "@/components/records/AddRecordForm";
+import { LabImport } from "@/components/records/LabImport";
 import { RecordDrawer } from "@/components/records/RecordDrawer";
 import { Alert, Button, Card, EmptyState, SelectField, Skeleton, TextField, VerificationBadge } from "@/components/ui/primitives";
 import { Drawer } from "@/components/ui/Drawer";
@@ -11,6 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api-client";
 import { TABLE_QUERY, useAsync, useMediaQuery } from "@/lib/hooks";
 import { filterRecords, formatDate, RECORD_TYPES, recordTypeLabel } from "@/lib/records";
+import type { ScanResult } from "@/lib/scan";
 import type { HealthRecord, Page } from "@/lib/types";
 
 const FILTERS = [{ value: "", label: "All types" }, ...RECORD_TYPES];
@@ -76,6 +78,8 @@ export function RecordsSection() {
   const [to, setTo] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // Set when a record was saved from a scan that also found lab results: the next step is to review them.
+  const [labsFrom, setLabsFrom] = useState<{ record: HealthRecord; scan: ScanResult } | null>(null);
   const [notice, setNotice] = useState<{ tone: "warning" | "success"; text: string } | null>(null);
   const list = useAsync(() => api<Page<HealthRecord>>(`/records?limit=${LIMIT}${type ? `&record_type=${type}` : ""}`), [type]);
 
@@ -96,13 +100,30 @@ export function RecordsSection() {
       <Drawer open={adding} onClose={() => setAdding(false)} title="Add a record" closeLabel="Close add record" className="sm:w-[30rem]">
         <AddRecordForm
           bare
-          onSaved={(text, tone) => {
+          onSaved={(text, tone, saved) => {
             setAdding(false);
             if (tone === "success") show(text, "success");
             else setNotice({ tone, text });
             void list.reload();
+            if (saved?.scan && saved.scan.labs.length > 0) setLabsFrom({ record: saved.record, scan: saved.scan });
           }}
         />
+      </Drawer>
+
+      <Drawer open={labsFrom !== null} onClose={() => setLabsFrom(null)} title="Add the results from this report" closeLabel="Close lab results" className="sm:w-[34rem]">
+        {labsFrom && (
+          <LabImport
+            key={labsFrom.record.id}
+            scan={labsFrom.scan}
+            file={null}
+            recordId={labsFrom.record.id}
+            onCancel={() => setLabsFrom(null)}
+            onDone={(saved) => {
+              setLabsFrom(null);
+              show(`${saved.length} lab result${saved.length === 1 ? "" : "s"} saved. See them under Lab results.`, "success");
+            }}
+          />
+        )}
       </Drawer>
 
       {notice && (

@@ -590,3 +590,91 @@ def test_asking_is_rate_limited(app, alice):
     app.state.settings.assistant_requests_per_minute = 2
     codes = [ask(alice, chat, "What is on my list?").status_code for _ in range(3)]
     assert codes == [201, 201, 429]
+
+
+# ------------------------------------------------------------- symptom statements and retry
+@pytest.mark.parametrize(
+    "text", ["my head hurts", "I have a headache", "I'm feeling dizzy", "i feel really tired"]
+)
+def test_symptom_statements_are_recognised(text):
+    c = policy.classify(text)
+    assert c.kind == policy.ANSWERABLE and c.symptom
+
+
+@pytest.mark.parametrize("text", ["What was my HbA1c?", "Which medicines do I take?"])
+def test_record_questions_are_not_symptom_statements(text):
+    assert not policy.classify(text).symptom
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["I have a sudden severe headache", "worst headache of my life", "headache and stiff neck"],
+)
+def test_headache_red_flags_get_the_emergency_text(text):
+    assert policy.classify(text).kind == policy.URGENT
+
+
+def test_my_head_hurts_gets_a_cited_answer_not_a_record_dump(alice, llm, db):
+    grant(alice)
+    lab(alice, 7.4, "2026-04-12")
+    med(alice, display_name="Paracetamol", reason="Headache", dose_text="500 mg")
+    llm.reply = "Your records list Paracetamol for headache [E1]. A pharmacist can help with this."
+    chat = new_chat(alice, labs=True, medicines=True)
+    m = answer(alice, chat, "my head hurts")
+    assert m["safety_classification"] == "answered" and m["mode"] == "llm"
+    assert policy.SYMPTOM_NOTE in m["content"]
+    # The unrelated lab value is neither sent to the model nor shown.
+    assert "HbA1c" not in llm.calls[0]["user"] and "HbA1c" not in m["content"]
+    assert "describing how they feel" in llm.calls[0]["user"]
+
+
+def test_a_rejected_first_draft_gets_one_corrected_retry(alice, llm, db):
+    grant(alice)
+    med(alice, display_name="Paracetamol", reason="Headache", dose_text="500 mg")
+    drafts = iter(
+        [
+            "I'm sorry your head hurts. Please see a doctor.",  # no citation
+            "Your records list Paracetamol for headache [E1].",
+        ]
+    )
+
+    def scripted(*, system, user, max_tokens):
+        llm.calls.append({"system": system, "user": user, "max_tokens": max_tokens})
+        return LLMResult(next(drafts), llm.model, llm.name)
+
+    llm.complete = scripted
+    chat = new_chat(alice, medicines=True)
+    m = answer(alice, chat, "my head hurts")
+    assert m["mode"] == "llm" and len(llm.calls) == 2
+    assert "evidence marker" in llm.calls[1]["user"]  # told what was wrong
+    assert stored_assistant_message(db).model_metadata["attempts"] == 2
+
+
+def test_two_rejected_drafts_still_fall_back_to_the_records(alice, llm, db):
+    grant(alice)
+    med(alice, display_name="Paracetamol", reason="Headache", dose_text="500 mg")
+    llm.reply = "I'm sorry your head hurts."  # never cites
+    chat = new_chat(alice, medicines=True)
+    m = answer(alice, chat, "my head hurts")
+    assert m["mode"] == "fallback" and len(llm.calls) == 2
+    assert "Paracetamol" in m["content"] and policy.SYMPTOM_NOTE in m["content"]
+    assert stored_assistant_message(db).model_metadata["rejected"] == ["no_citation"]
+
+
+def test_provider_down_says_so_and_is_not_retried(alice, llm):
+    grant(alice)
+    med(alice)
+    llm.reply = LLMUnavailable("down")
+    chat = new_chat(alice, medicines=True)
+    m = answer(alice, chat, "Which medicines do I take?")
+    assert "couldn't reach the AI model" in m["content"] and len(llm.calls) == 1
+
+
+def test_take_advice_wording_is_not_mistaken_for_treatment_advice():
+    from app.assistant.evidence import Bundle
+    from app.assistant.validate import validate_answer
+
+    v = validate_answer(
+        "You should take advice from your pharmacist.", Bundle(items=[], categories=[]), "x"
+    )
+    assert "advice_or_causal_claim" not in v.reasons

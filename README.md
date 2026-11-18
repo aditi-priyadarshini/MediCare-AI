@@ -22,7 +22,8 @@ Phase 2 notes:
 - Uploads are identified by magic bytes (the client's Content-Type and filename are never trusted), capped at `MAX_UPLOAD_BYTES` (10 MB), stored under random keys in `STORAGE_DIR`, and only ever served back to their owner as attachments. Docker Compose mounts a named volume for them.
 - A lab flag (`low` / `normal` / `high` / `unknown`) is computed by the server from the value and the range printed on the report. It is not an interpretation: the UI says "below/above report range" and never "abnormal".
 - Records and results are never hard-deleted by the user; "remove" sets `entered_in_error`. Editing content resets `verification_status` to `patient_reported`. File downloads are written to the audit log.
-- Endpoints: `/records` (+ `/{id}/file`), `/labs`, `/labs/tests`, `/labs/trend?test_name=`.
+- Endpoints: `/records` (+ `/{id}/file`), `/labs` (+ `/labs/bulk`), `/labs/tests`, `/labs/trend?test_name=`, `/records/scan` and `/records/scan/status`.
+- **Scan to fill:** take a photo or upload a report to pre-fill the record and lab forms. Read locally with Tesseract; nothing is saved until the patient reviews and presses Save. See `docs/SCAN_TO_FILL.md`.
 
 Phase 3 notes:
 - A medicine is either `prescribed` (linked to a prescription a clinician wrote) or `self_reported` (a medication statement, including over-the-counter use). The server derives this from whether a prescription is linked; the client cannot set it.

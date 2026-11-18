@@ -33,6 +33,12 @@ _URGENT = [
     r"\b(overdos\w*|took too many|taken too many|swallowed too many|poisoned|poisoning)\b",
     r"\b(anaphyla\w*|throat (is )?(closing|swelling)|swollen (tongue|throat))\b",
     r"\b(heart attack|having a stroke)\b",
+    # Headache red flags (more important with recorded high blood pressure).
+    r"\b(worst|thunderclap) headache\b",
+    r"\b(sudden|severe|terrible|excruciating)( and \w+)? headache\b",
+    r"\bheadache (with|and) (a )?(fever|stiff neck|vomiting|confusion|weakness|numbness|"
+    r"(blurred|double|lost) vision)\b",
+    r"\bstiff neck\b",
 ]
 
 _TREATMENT = [
@@ -70,6 +76,28 @@ _EFFECT = re.compile(
     r"caus\w*|because of|due to|responsible)\b"
 )
 
+# A patient describing how they feel ("my head hurts", "I have a headache") is not asking a
+# question about their records. Such a message gets a short, cited answer about what the records
+# hold that is relevant, plus the fixed note below; it is never treated as an assessment.
+_BODY_PART = (
+    r"(head|stomach|tummy|belly|back|chest|throat|ear|ears|tooth|teeth|eye|eyes|leg|legs|arm|arms|"
+    r"knee|knees|neck|joint|joints|muscle|muscles|foot|feet|hand|hands|skin)"
+)
+_SYMPTOM_WORD = (
+    r"(headache|migraine|fever|cough|cold|nausea|nauseous|dizz\w+|rash|pain|painful|sore|ache|aches|"
+    r"diarrh\w+|vomit\w*|tired|fatigue\w*|weak|weakness|itch\w*|swelling|swollen|cramp\w*|"
+    r"constipat\w*|heartburn|palpitation\w*|sick|unwell|bloated|lightheaded)"
+)
+_SYMPTOM = [
+    rf"\bmy {_BODY_PART} (hurts?|aches?|is (paining|sore|killing me|throbbing|pounding)|"
+    rf"are (paining|sore)|feels?)\b",
+    rf"\bi (have|got|am having|am getting|keep getting|feel|am feeling|'ve got|have been having) "
+    rf"(a |an |some |very |so |really |been )*{_SYMPTOM_WORD}\b",
+    r"\bi'?m (feeling )?(dizzy|nauseous|sick|unwell|lightheaded|tired|weak)\b",
+    rf"\b(my )?{_SYMPTOM_WORD} (since|for the (last|past)|started|came on)\b",
+]
+_SYMPTOM_RE = [re.compile(p) for p in _SYMPTOM]
+
 _URGENT_RE = [re.compile(p) for p in _URGENT]
 _TREATMENT_RE = [re.compile(p) for p in _TREATMENT]
 _DIAGNOSIS_RE = [re.compile(p) for p in _DIAGNOSIS]
@@ -84,6 +112,7 @@ def normalize(text: str) -> str:
 class Classification:
     kind: str
     effect_question: bool = False
+    symptom: bool = False  # the patient described how they feel (only set for ANSWERABLE)
 
 
 def classify(question: str) -> Classification:
@@ -94,7 +123,11 @@ def classify(question: str) -> Classification:
         return Classification(TREATMENT_CHANGE)
     if any(p.search(q) for p in _DIAGNOSIS_RE) and not _RECORD_WORDS.search(q):
         return Classification(DIAGNOSIS)
-    return Classification(ANSWERABLE, effect_question=bool(_EFFECT.search(q)))
+    return Classification(
+        ANSWERABLE,
+        effect_question=bool(_EFFECT.search(q)),
+        symptom=any(p.search(q) for p in _SYMPTOM_RE),
+    )
 
 
 # ------------------------------------------------------------------------------- fixed text
@@ -143,6 +176,13 @@ FOOTER = (
     "This is information from your recorded data, not medical advice. It can't diagnose "
     "anything or tell you what to take. Please talk to your clinician or pharmacist before "
     "changing any treatment."
+)
+
+SYMPTOM_NOTE = (
+    "I can't assess symptoms. If this is sudden, severe, getting worse, or comes with chest pain, "
+    "trouble breathing, confusion, weakness, fainting, a stiff neck, vision changes or a high "
+    "fever, get medical help now (112 in India). Otherwise, a pharmacist or your clinician can "
+    "help you work out what to do."
 )
 
 ASSOCIATION_NOTE = (

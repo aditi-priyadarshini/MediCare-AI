@@ -18,6 +18,7 @@ was actually sent the request, because each one is a disclosure of the same evid
 """
 
 import ipaddress
+import logging
 import re
 import threading
 import time
@@ -31,6 +32,8 @@ import httpx
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+log = logging.getLogger(__name__)
 
 # Reasoning models may emit their working before the answer; it is not part of the answer.
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
@@ -80,8 +83,13 @@ def _post(provider: str, url: str, headers: dict, body: dict, timeout: float) ->
         resp = httpx.post(url, headers=headers, json=body, timeout=timeout)
         resp.raise_for_status()
         data = resp.json()
+    except httpx.HTTPStatusError as exc:
+        # The status code is safe and is the fastest clue: 401/403 = key, 404 = model name,
+        # 429 = quota. Never include the response body or URL: they can echo the prompt or key.
+        raise LLMUnavailable(
+            f"{provider} request failed (HTTP {exc.response.status_code})."
+        ) from exc
     except (httpx.HTTPError, ValueError) as exc:
-        # Never include the response body or URL: they can echo the prompt or the key.
         raise LLMUnavailable(f"{provider} request failed ({type(exc).__name__}).") from exc
     if not isinstance(data, dict):
         raise LLMUnavailable(f"{provider} returned an unexpected response.")
@@ -295,6 +303,9 @@ class FailoverProvider:
                 result = member.complete(system=system, user=user, max_tokens=max_tokens)
             except LLMUnavailable as exc:
                 self._record(member.name, str(exc))
+                # Operators need to see why the assistant fell back; the message is already
+                # scrubbed of keys, URLs and prompt text.
+                log.warning("llm_provider_failed provider=%s error=%s", member.name, exc)
                 continue
             self._record(member.name, None)
             return LLMResult(result.text, result.model, result.provider, tuple(attempted))

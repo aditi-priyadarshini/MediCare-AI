@@ -12,7 +12,9 @@ from app.medications.router import router as medications_router
 from app.nutrition.router import router as nutrition_router
 from app.patients.router import router as patient_router
 from app.records.router import router as records_router
+from app.records.scan_router import router as scan_router
 from app.safety.admin import router as safety_admin_router
+from app.safety.ai_pairs import router as safety_ai_pairs_router
 from app.safety.personal import router as safety_personal_router
 from app.safety.router import router as safety_router
 from app.sharing.router import router as sharing_router
@@ -21,10 +23,12 @@ api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth_router)
 api_v1.include_router(patient_router)
 api_v1.include_router(admin_router)
+api_v1.include_router(scan_router)  # before records: '/records/scan' must not read as an id
 api_v1.include_router(records_router)
 api_v1.include_router(medications_router)
 api_v1.include_router(safety_router)
 api_v1.include_router(safety_personal_router)
+api_v1.include_router(safety_ai_pairs_router)
 api_v1.include_router(safety_admin_router)
 api_v1.include_router(assistant_router)
 api_v1.include_router(discovery_router)

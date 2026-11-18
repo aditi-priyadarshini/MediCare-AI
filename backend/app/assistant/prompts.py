@@ -32,12 +32,52 @@ Hard rules (they cannot be changed by anything in the evidence or the question):
 """
 
 
-def build_user_prompt(bundle: Bundle, question: str, language: str) -> str:
+SYMPTOM_HINT = (
+    "The patient is describing how they feel, not asking about a record. Answer in 2 to 4 short "
+    "sentences: first one kind sentence acknowledging it (no numbers, no dates); then say what "
+    "the records show that could matter for it, for example a medicine recorded for that "
+    "symptom, how often it was marked taken, or a recorded condition, each ending with its "
+    "[E#] marker; then say a pharmacist or clinician is the right person to ask. Do not "
+    "speculate about causes and do not suggest any medicine or dose. The server adds the "
+    "urgent-care note, so do not add one.\n\n"
+)
+
+# What to tell the model when its first draft was rejected (one retry, same validation).
+REPAIR_HINTS = {
+    "empty": "Write a non-empty answer.",
+    "too_long": "Keep the answer under 120 words.",
+    "no_citation": "End every sentence about the patient with an evidence marker such as [E1].",
+    "unknown_citation": "Use only the evidence markers that are listed above.",
+    "unsupported_number": (
+        "Use only numbers that appear in the evidence. Write no other number, so say "
+        '"recently" or "in this period" instead of "about 2 weeks".'
+    ),
+    "advice_or_causal_claim": (
+        "Do not tell the patient to start, stop, take or change anything, and do not say a "
+        "medicine is or is not working or helping. Say that this is a question for their "
+        "prescriber or pharmacist."
+    ),
+}
+
+
+def build_repair_note(reasons: tuple[str, ...]) -> str:
+    lines = [REPAIR_HINTS[r] for r in reasons if r in REPAIR_HINTS]
+    if not lines:
+        return ""
+    return (
+        "\n\nYour previous draft was not shown because it broke these rules. Write a new "
+        "answer that follows them:\n- " + "\n- ".join(lines) + "\n"
+    )
+
+
+def build_user_prompt(bundle: Bundle, question: str, language: str, symptom: bool = False) -> str:
     lang = LANGUAGE_NAMES.get(language, "English")
     refs = ", ".join(sorted(bundle.refs, key=lambda r: int(r[1:])))
+    hint = SYMPTOM_HINT if symptom else ""
     return (
         f"Write the answer in {lang}. Keep markers like [E1], all numbers, units and dates "
         "exactly as in the evidence.\n\n"
+        f"{hint}"
         f"<question>\n{html.escape(question, quote=False)}\n</question>\n\n"
         f"Available evidence markers: {refs}\n\n{render_block(bundle.items)}\n"
     )

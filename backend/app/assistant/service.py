@@ -30,7 +30,7 @@ from app.assistant.models import (
     ChatMessage,
     ChatSession,
 )
-from app.assistant.prompts import SYSTEM_PROMPT, build_user_prompt
+from app.assistant.prompts import SYSTEM_PROMPT, build_repair_note, build_user_prompt
 from app.assistant.provider import LLMProvider, LLMUnavailable
 from app.assistant.schemas import ContextIn
 from app.assistant.validate import validate_answer
@@ -49,6 +49,10 @@ LISTING_INTRO = (
 FALLBACK_INTRO = (
     "I couldn't produce a written summary I can stand behind, so here are the matching records "
     "exactly as recorded."
+)
+UNAVAILABLE_INTRO = (
+    "I couldn't reach the AI model just now, so here are the matching records exactly as "
+    "recorded. Please try again in a moment."
 )
 
 
@@ -71,8 +75,10 @@ def _needs_association_note(bundle: ev.Bundle, effect_question: bool) -> bool:
     return effect_question and bundle.has_patient_data
 
 
-def _with_footer(body: str, bundle: ev.Bundle, effect_question: bool) -> str:
+def _with_footer(body: str, bundle: ev.Bundle, effect_question: bool, symptom: bool = False) -> str:
     parts = [body.strip()]
+    if symptom:
+        parts.append(policy.SYMPTOM_NOTE)
     if _needs_association_note(bundle, effect_question):
         parts.append(policy.ASSOCIATION_NOTE)
     parts.append(policy.FOOTER)
@@ -101,7 +107,7 @@ def answer_question(
         return Answer(text, classification, {"mode": "canned"})
 
     flags = retrieval.effective_flags(stored_context, consent)
-    bundle = retrieval.build_bundle(db, user, flags, question)
+    bundle = retrieval.build_bundle(db, user, flags, question, symptom=verdict.symptom)
 
     if not bundle.items:
         if not consent:
@@ -120,43 +126,64 @@ def answer_question(
         )
 
     metadata: dict = {"mode": "evidence_only", "provider": llm.name, "context": flags.as_dict()}
+    unavailable = False
     if llm.configured:
-        try:
-            result = llm.complete(
-                system=SYSTEM_PROMPT,
-                user=build_user_prompt(bundle, policy.redact_question(question), language),
-                max_tokens=max_tokens,
-            )
-        except LLMUnavailable as exc:
-            metadata.update(mode="fallback", rejected=["provider_unavailable"])
-            if exc.attempted:
-                metadata["providers_contacted"] = list(exc.attempted)
-        else:
-            if result.attempted:
-                metadata["providers_contacted"] = list(result.attempted)
+        prompt = build_user_prompt(
+            bundle, policy.redact_question(question), language, symptom=verdict.symptom
+        )
+        contacted: list[str] = []
+        rejected_once: tuple[str, ...] = ()
+        # Up to two drafts: if the first breaks a rule the model is told which one and asked once
+        # more. Both drafts go through the same validation, so this only reduces needless
+        # fallbacks; it never lets an unchecked answer through.
+        for attempt in (1, 2):
+            note = build_repair_note(rejected_once) if attempt == 2 else ""
+            try:
+                result = llm.complete(
+                    system=SYSTEM_PROMPT, user=prompt + note, max_tokens=max_tokens
+                )
+            except LLMUnavailable as exc:
+                contacted += [p for p in (exc.attempted or ()) if p not in contacted]
+                if attempt == 1:
+                    unavailable = True
+                    metadata.update(mode="fallback", rejected=["provider_unavailable"])
+                # On the retry keep the first draft's rejection reasons as the outcome.
+                break
+            contacted += [p for p in (result.attempted or ()) if p not in contacted]
             checked = validate_answer(result.text, bundle, question)
             if checked.ok:
                 body = result.text.strip()
                 cited = {f"E{n}" for n in _CITE.findall(body)} & bundle.refs
                 metadata.update(mode="llm", provider=result.provider, model=result.model)
+                if attempt == 2:
+                    metadata["attempts"] = 2
+                if contacted:
+                    metadata["providers_contacted"] = contacted
                 return Answer(
-                    _with_footer(body, bundle, verdict.effect_question),
+                    _with_footer(body, bundle, verdict.effect_question, verdict.symptom),
                     "answered",
                     metadata,
                     bundle.items,
                     cited,
                 )
+            rejected_once = checked.reasons
             metadata.update(
                 mode="fallback",
                 provider=result.provider,
                 model=result.model,
                 rejected=list(checked.reasons),
+                attempts=attempt,
             )
+        if contacted:
+            metadata["providers_contacted"] = contacted
 
-    intro = FALLBACK_INTRO if metadata["mode"] == "fallback" else LISTING_INTRO
+    if metadata["mode"] != "fallback":
+        intro = LISTING_INTRO
+    else:
+        intro = UNAVAILABLE_INTRO if unavailable else FALLBACK_INTRO
     body = f"{intro}\n{ev.render_evidence_only(bundle.items)}"
     return Answer(
-        _with_footer(body, bundle, verdict.effect_question),
+        _with_footer(body, bundle, verdict.effect_question, verdict.symptom),
         "fallback" if metadata["mode"] == "fallback" else "evidence_only",
         metadata,
         bundle.items,
