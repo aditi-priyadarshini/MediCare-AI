@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import text
 
+from app.calls.push import build_push_provider
 from app.core.config import get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.logging import configure_logging
@@ -43,8 +44,9 @@ def main() -> int:
     email = (
         MemoryEmailProvider()
         if settings.email_backend == "memory"
-        else SmtpEmailProvider(settings.smtp_host, settings.smtp_port, settings.smtp_from)
+        else SmtpEmailProvider.from_settings(settings)
     )
+    push = build_push_provider(settings)
     signal.signal(signal.SIGTERM, _request_stop)
     signal.signal(signal.SIGINT, _request_stop)
 
@@ -57,10 +59,11 @@ def main() -> int:
             if got:
                 try:
                     with sessions() as db:
-                        stats = tick(db, datetime.now(UTC), email, settings)
+                        stats = tick(db, datetime.now(UTC), email, settings, push)
                     summary = (
                         f"doses={stats.doses_created} notifications={stats.notifications_created} "
-                        f"delivered={stats.delivered} emails={stats.emails_sent}"
+                        f"delivered={stats.delivered} emails={stats.emails_sent} "
+                        f"calls={stats.calls_rung} call_failures={stats.calls_failed}"
                     )
                     log.info("worker_tick", extra={"event": summary})
                 except Exception as exc:  # keep the loop alive

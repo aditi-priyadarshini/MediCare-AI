@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     smtp_host: str = "localhost"
     smtp_port: int = 1025
     smtp_from: str = "MediCare AI <no-reply@medicare.local>"
+    # Authenticated SMTP (Zoho etc.). Leave username/password unset for a local relay or Mailpit.
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_security: Literal["none", "starttls", "ssl"] = "none"
 
     # Google OAuth (optional; the endpoints report "unavailable" when unset)
     google_client_id: str | None = None
@@ -61,6 +65,40 @@ class Settings(BaseSettings):
 
     # Reminder worker (python -m app.scripts.run_worker)
     worker_interval_seconds: int = 60
+
+    # Reminder calls (WebRTC). Off by default. A call is a push to the patient's phone app that
+    # rings like an incoming call; once answered, the app and this server set up a WebRTC audio
+    # session and the server speaks the reminder. The push never contains a medicine name.
+    calls_enabled: bool = False
+    call_ring_seconds: int = 45  # how long the phone rings before the call counts as missed
+    call_max_attempts: int = 2  # rings per dose (a declined call is never retried)
+    call_retry_after_seconds: int = 180  # wait after a missed/failed ring before ringing again
+    call_max_age_minutes: int = 20  # don't ring for a dose that was due longer ago than this
+    call_session_max_seconds: int = 300  # hard cap on an answered call
+    call_ticket_ttl_seconds: int = 60  # lifetime of the one-shot signalling ticket
+    device_stale_days: int = 60  # devices not seen for this long are not rung
+    # ICE. TURN uses coturn's REST-API scheme (`use-auth-secret`): short-lived credentials are
+    # derived from TURN_SECRET and never stored. TURN_URLS is comma-separated, e.g.
+    # "turn:turn.example.org:3478?transport=udp,turns:turn.example.org:5349?transport=tcp".
+    stun_urls: str = "stun:stun.l.google.com:19302"
+    turn_urls: str = ""
+    turn_secret: str | None = None
+    turn_credential_ttl_seconds: int = 600
+    # Server-side text-to-speech, run without a shell: the command is split with shlex, "{out}"
+    # is replaced by a WAV path and the text arrives on stdin. Example with Piper:
+    #   piper --model /models/en_US-lessac-medium.onnx --output_file {out}
+    # Unset: the server sends no audio and the app reads the reminder with the phone's own voice.
+    tts_command: str | None = None
+    tts_timeout_seconds: int = 20
+    # Android push (Firebase Cloud Messaging HTTP v1)
+    fcm_project_id: str | None = None
+    fcm_service_account_file: str | None = None
+    # iOS VoIP push (APNs). The .p8 key must be allowed for the app's bundle id.
+    apns_key_file: str | None = None
+    apns_key_id: str | None = None
+    apns_team_id: str | None = None
+    apns_bundle_id: str | None = None
+    apns_sandbox: bool = False
 
     # AI assistant (Phase 5). "none" = no model: the assistant lists the matching records
     # itself ("evidence only"). Only structured, de-identified evidence is ever sent out.
@@ -110,6 +148,14 @@ class Settings(BaseSettings):
         return self.allowed_origins[0]
 
     @property
+    def ice_stun(self) -> list[str]:
+        return [u.strip() for u in self.stun_urls.split(",") if u.strip()]
+
+    @property
+    def ice_turn(self) -> list[str]:
+        return [u.strip() for u in self.turn_urls.split(",") if u.strip()]
+
+    @property
     def google_enabled(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret)
 
@@ -124,6 +170,13 @@ class Settings(BaseSettings):
                 raise ValueError("COOKIE_SECURE must be true in production")
             if self.email_backend == "memory":
                 raise ValueError("EMAIL_BACKEND=memory is not allowed in production")
+        if bool(self.smtp_username) != bool(self.smtp_password):
+            raise ValueError("SMTP_USERNAME and SMTP_PASSWORD must be set together")
+        if self.smtp_username and self.smtp_security == "none":
+            raise ValueError("SMTP_SECURITY must be starttls or ssl when SMTP_USERNAME is set")
+        if self.calls_enabled and self.environment == "production":
+            if not self.turn_urls or not self.turn_secret:
+                raise ValueError("TURN_URLS and TURN_SECRET are required when CALLS_ENABLED=true")
         from app.assistant.provider import resolve_specs  # fail fast on a bad provider chain
 
         resolve_specs(self)

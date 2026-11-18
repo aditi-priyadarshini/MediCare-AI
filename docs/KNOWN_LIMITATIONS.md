@@ -31,3 +31,6 @@
 - Brand names are model recall for the Indian market and can be out of date or wrong; products the server cannot match are discarded, which can also hide a real one.
 - Not verified against a live provider; every run makes model calls (no caching), so cost and latency grow with the number of medicines (reviews are capped at 12 medicines, generics at 8).
 
+## Reminder calls (WebRTC)
+- Optional and off by default. The backend rules are covered by tests; the push adapters (FCM, APNs VoIP), aiortc media, TURN and the phone app were **not run against real services or devices**. See `docs/REMINDER_CALLS.md` for the full list, including app-store policy and Android battery-optimisation caveats.
+- Spoken text is English; there is no two-way audio; only the most recently used phone rings; refill and expiry alerts don't ring.

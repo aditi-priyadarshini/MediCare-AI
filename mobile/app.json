@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "MediCare AI",
+    "slug": "medicare-ai-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "org.example.medicare",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "UIBackgroundModes": ["voip", "audio", "remote-notification"]
+      }
+    },
+    "android": {
+      "package": "org.example.medicare",
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "plugins": [
+      "@react-native-firebase/app",
+      "@config-plugins/react-native-webrtc",
+      ["expo-build-properties", { "ios": { "useFrameworks": "static" } }]
+    ]
+  }
+}

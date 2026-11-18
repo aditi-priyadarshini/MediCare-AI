@@ -91,6 +91,7 @@ def test_consents_default_to_not_granted(alice):
         "health_data_processing",
         "ai_context",
         "reminder_email",
+        "reminder_call",
     }
     assert not any(c["granted"] for c in consents.values())
     assert consents["ai_context"]["required"] is False

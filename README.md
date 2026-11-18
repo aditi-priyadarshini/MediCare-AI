@@ -33,6 +33,7 @@ Phase 3 notes:
 - Reminder email is opt-in (`reminder_email` consent), at most one per patient per tick, and never contains a medicine name.
 - The catalogue holds names, forms and strengths only: no dosing, interactions or advice. Its 14 seed rows are in migration 0003; admins add more with `POST /admin/medicines`.
 - Run the worker with `python -m app.scripts.run_worker` (or `--once`). Docker Compose starts it as the `worker` service.
+- **Reminder calls (optional, off by default):** the phone app can ring like an incoming call when a dose is due and read the reminder over WebRTC. Needs push credentials, a TURN server and the app in `mobile/`; see `docs/REMINDER_CALLS.md`. A call never marks a dose as taken.
 - Endpoints: `/medicines`, `/prescriptions`, `/medications` (+ `/schedules`, `/supplies`, `/alerts`), `/schedules/{id}`, `/supplies/{id}`, `/doses` (+ `/take`, `/skip`, `/reset`), `/notifications`.
 
 Phase 4 notes:
@@ -174,6 +175,19 @@ Pushing to `main` runs `.github/workflows/deploy.yml`: CI (`ci.yml`) must pass, 
 
 Repository secrets: `OCI_HOST`, `OCI_USER`, `OCI_SSH_KEY` (private deploy key), `GHCR_PULL_TOKEN` (a token with `read:packages`). Optional repository variable `OCI_APP_DIR` (default `/home/ubuntu/medicare-ai`).
 
-One-time server setup: install Docker with the compose plugin, let `OCI_USER` use `sudo docker`, and create `OCI_APP_DIR/.env` with `POSTGRES_PASSWORD`, `SECRET_KEY`, `FRONTEND_ORIGINS` (your public https origin), `SMTP_HOST` (and optionally `SMTP_PORT`, `SMTP_FROM`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and for the assistant `LLM_PROVIDER=anthropic`, `LLM_API_KEY`, `LLM_MODEL`; without them the assistant runs in evidence-only mode). The frontend listens on `127.0.0.1:3000`; put a TLS reverse proxy in front of it. Production refuses to start without `COOKIE_SECURE`, a real `SECRET_KEY` and a non-memory email backend. The app's SMTP client has no login support, so `SMTP_HOST` must be a relay that accepts mail from the server (for example a local Postfix relay).
+One-time server setup: install Docker with the compose plugin, let `OCI_USER` use `sudo docker`, and create `OCI_APP_DIR/.env` with `POSTGRES_PASSWORD`, `SECRET_KEY`, `FRONTEND_ORIGINS` (your public https origin), `SMTP_HOST` (and optionally `SMTP_PORT`, `SMTP_FROM`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_SECURITY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and for the assistant `LLM_PROVIDER=anthropic`, `LLM_API_KEY`, `LLM_MODEL`; without them the assistant runs in evidence-only mode). The frontend listens on `127.0.0.1:3000`; put a TLS reverse proxy in front of it. Production refuses to start without `COOKIE_SECURE`, a real `SECRET_KEY` and a non-memory email backend. The SMTP client supports login and TLS, so `SMTP_HOST` can be a hosted provider such as Zoho (see below) or a local relay that needs no login.
+
+**Email via Zoho Mail SMTP.** Put these in the server's `.env`:
+
+```
+SMTP_HOST=smtp.zoho.in          # smtp.zoho.com (US), .eu, .com.au, .jp: match your Zoho data centre
+SMTP_PORT=465
+SMTP_SECURITY=ssl                # or: SMTP_PORT=587 and SMTP_SECURITY=starttls
+SMTP_USERNAME=no-reply@yourdomain.com
+SMTP_PASSWORD=<Zoho app password>
+SMTP_FROM=MediCare AI <no-reply@yourdomain.com>
+```
+
+`SMTP_FROM` must be the authenticated mailbox or one of its aliases, or Zoho rejects the message. With two-factor authentication on, create an app password in Zoho Accounts > Security. Both the API and the reminder worker read these settings.
 
 To roll back, re-run the workflow on an earlier commit, or on the server run `IMAGE_PREFIX=ghcr.io/<owner> IMAGE_TAG=<old-sha> docker compose -f docker-compose.prod.yml up -d`.

@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConical, Plus, ScanLine } from "lucide-react";
+import { FlaskConical, Plus, ScanLine, Search } from "lucide-react";
 import { useState } from "react";
 import { LabForm } from "@/components/records/LabForm";
 import { LabImport } from "@/components/records/LabImport";
@@ -46,6 +46,7 @@ export function LabsSection() {
   const [removing, setRemoving] = useState<LabResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
 
   const name = selected ?? tests.data?.[0]?.test_name ?? null;
   const detail = useAsync(async () => {
@@ -192,31 +193,56 @@ export function LabsSection() {
             </>
           ) : null
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-            <ul aria-label="Tests" className="space-y-1">
-              {tests.data.map((t) => {
-                const active = t.test_name === name;
+          <div className="grid gap-4 lg:grid-cols-[280px_1fr] lg:gap-6">
+            <div className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+              {tests.data.length > 6 && (
+                <div className="relative mb-2">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" aria-hidden />
+                  <input
+                    type="search"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    placeholder={`Search ${tests.data.length} tests`}
+                    aria-label="Search tests"
+                    className="min-h-control w-full rounded-lg border border-line bg-white pl-9 pr-3 text-sm text-ink placeholder:text-ink-soft focus:border-teal-700 focus:outline-none"
+                  />
+                </div>
+              )}
+              {(() => {
+                const q = filter.trim().toLowerCase();
+                const shown = q ? tests.data.filter((t) => t.test_name.toLowerCase().includes(q)) : tests.data;
                 return (
-                  <li key={t.test_name}>
-                    <button
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setSelected(t.test_name)}
-                      className={`min-h-[56px] w-full rounded-lg border px-3 py-2 text-left ${active ? "border-teal-700 bg-mint-100" : "border-line hover:bg-mint-100"}`}
-                    >
-                      <span className="block font-medium text-ink">{t.test_name}</span>
-                      <span className="block text-xs text-ink-soft tnum">
-                        {formatLabValue({ value_numeric: t.latest_value_numeric, value_text: t.latest_value_text, unit: t.latest_unit })}
-                        {" · "}
-                        {FLAG_LABEL[t.latest_flag]}
-                        {" · "}
-                        {t.count} result{t.count === 1 ? "" : "s"}
-                      </span>
-                    </button>
-                  </li>
+                  <ul
+                    aria-label="Tests"
+                    tabIndex={0}
+                    className="max-h-72 divide-y divide-line overflow-y-auto overscroll-contain rounded-lg border border-line lg:max-h-[calc(100vh-14rem)]"
+                  >
+                    {shown.length === 0 && <li className="p-3 text-sm text-ink-soft">No tests match “{filter}”.</li>}
+                    {shown.map((t) => {
+                      const active = t.test_name === name;
+                      return (
+                        <li key={t.test_name}>
+                          <button
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => setSelected(t.test_name)}
+                            className={`flex min-h-[44px] w-full flex-col justify-center border-l-4 px-3 py-1.5 text-left ${active ? "border-teal-700 bg-mint-100" : "border-transparent hover:bg-mint-100"}`}
+                          >
+                            <span className="truncate text-sm font-medium text-ink">{t.test_name}</span>
+                            <span className="truncate text-xs text-ink-soft tnum">
+                              {formatLabValue({ value_numeric: t.latest_value_numeric, value_text: t.latest_value_text, unit: t.latest_unit })}
+                              {" · "}
+                              {FLAG_LABEL[t.latest_flag]}
+                              {t.count > 1 && ` · ${t.count} results`}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 );
-              })}
-            </ul>
+              })()}
+            </div>
 
             <div aria-live="polite" className="min-w-0 space-y-4">
               {detail.error && !detail.data ? (

@@ -173,6 +173,7 @@ ConsentType = Literal[
     "health_data_processing",
     "ai_context",
     "reminder_email",
+    "reminder_call",
 ]
 REQUIRED_CONSENTS: tuple[str, ...] = (
     "terms_of_service",
