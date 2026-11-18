@@ -331,7 +331,11 @@ class FailoverProvider:
                 system="Reply with the single word OK.", user="Connectivity check.", max_tokens=16
             )
         except Exception as exc:  # noqa: BLE001
-            msg = str(exc) if isinstance(exc, LLMUnavailable) else f"{name} failed ({type(exc).__name__})."
+            msg = (
+                str(exc)
+                if isinstance(exc, LLMUnavailable)
+                else f"{name} failed ({type(exc).__name__})."
+            )
             self._record(name, msg)
             return False, msg
         self._record(name, None)
