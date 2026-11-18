@@ -65,7 +65,9 @@ def ice_servers(settings: Settings, user_id: uuid.UUID, now: datetime) -> list[d
         username = f"{expiry}:{user_id}"
         # coturn's REST API scheme is defined as HMAC-SHA1.
         digest = hmac.new(
-            settings.turn_secret.encode(), username.encode(), hashlib.sha1  # noqa: S324
+            settings.turn_secret.encode(),
+            username.encode(),
+            hashlib.sha1,  # noqa: S324
         ).digest()
         servers.append(
             {

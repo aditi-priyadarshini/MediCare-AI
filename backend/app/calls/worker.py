@@ -61,9 +61,7 @@ def expire_calls(db: Session, now: datetime, settings: Settings) -> int:
     return changed
 
 
-def ring_due_doses(
-    db: Session, now: datetime, push: PushProvider, settings: Settings
-) -> CallStats:
+def ring_due_doses(db: Session, now: datetime, push: PushProvider, settings: Settings) -> CallStats:
     stats = CallStats()
     if not settings.calls_enabled:
         return stats
@@ -100,8 +98,10 @@ def ring_due_doses(
         attempt = len(prior) + 1
         if attempt > settings.call_max_attempts:
             continue
-        if prior and prior[-1].ended_at and prior[-1].ended_at > now - timedelta(
-            seconds=settings.call_retry_after_seconds
+        if (
+            prior
+            and prior[-1].ended_at
+            and prior[-1].ended_at > now - timedelta(seconds=settings.call_retry_after_seconds)
         ):
             continue
 

@@ -49,8 +49,10 @@ async def run(server: str, email: str, password: str, frames_needed: int, timeou
             print(f"FAIL accept: HTTP {r.status_code} {r.text[:200]}")
             return 1
         acc = r.json()
-        print(f"ok   answered; dose = {acc['dose']['medication_name']!r}; "
-              f"{len(acc['ice_servers'])} ICE server(s)")
+        print(
+            f"ok   answered; dose = {acc['dose']['medication_name']!r}; "
+            f"{len(acc['ice_servers'])} ICE server(s)"
+        )
 
         ice = [
             RTCIceServer(urls=s["urls"], username=s.get("username"), credential=s.get("credential"))
@@ -95,8 +97,10 @@ async def run(server: str, email: str, password: str, frames_needed: int, timeou
                         print("ok   WebRTC answer received")
                     elif msg["type"] == "info" and msg.get("code") == "TTS_UNAVAILABLE":
                         got["tts_missing"] = True
-                        print("note server has no voice (TTS_COMMAND unset or failed): the phone "
-                              "would read the reminder itself")
+                        print(
+                            "note server has no voice (TTS_COMMAND unset or failed): the phone "
+                            "would read the reminder itself"
+                        )
                         break
                     elif msg["type"] == "error":
                         print(f"FAIL server error: {msg.get('code')}")
@@ -126,8 +130,10 @@ async def run(server: str, email: str, password: str, frames_needed: int, timeou
         if got["frames"] >= frames_needed:
             print("PASS server-side reminder call works: audio reached the simulated phone.")
             return 0
-        print("FAIL signalling worked but no audio arrived (ICE/network). Try TURN, or run the API "
-              "outside Docker so its address is reachable.")
+        print(
+            "FAIL signalling worked but no audio arrived (ICE/network). Try TURN, or run the API "
+            "outside Docker so its address is reachable."
+        )
         return 1
 
 
