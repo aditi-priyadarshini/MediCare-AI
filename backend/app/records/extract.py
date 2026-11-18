@@ -117,10 +117,12 @@ def _prepare(data: bytes, max_pixels: int) -> bytes:
         raise ScanUnavailable("This image could not be opened.", "IMAGE_UNREADABLE", 422) from exc
     if img.width < _MIN_OCR_WIDTH:
         factor = _MIN_OCR_WIDTH / img.width
-        img = img.resize((_MIN_OCR_WIDTH, max(1, round(img.height * factor))), Image.LANCZOS)
+        size = (_MIN_OCR_WIDTH, max(1, round(img.height * factor)))
+        img = img.resize(size, Image.Resampling.LANCZOS)
     elif img.width > _MAX_OCR_WIDTH:
         factor = _MAX_OCR_WIDTH / img.width
-        img = img.resize((_MAX_OCR_WIDTH, max(1, round(img.height * factor))), Image.LANCZOS)
+        size = (_MAX_OCR_WIDTH, max(1, round(img.height * factor)))
+        img = img.resize(size, Image.Resampling.LANCZOS)
     out = io.BytesIO()
     img.save(out, format="PNG")
     return out.getvalue()
