@@ -225,9 +225,7 @@ def test_comma_separated_models_become_ordered_fallbacks():
     assert [m.name for m in chain.members] == ["gemini", "gemini-2", "gemini-3", "openrouter"]
     assert [m.model for m in chain.members] == ["gemini-a", "gemini-b", "gemini-c", "o"]
     with pytest.raises(ValueError, match="twice"):
-        P.build_provider(
-            cfg(llm_provider="gemini", gemini_api_key=KEY, gemini_model="a,a")
-        )
+        P.build_provider(cfg(llm_provider="gemini", gemini_api_key=KEY, gemini_model="a,a"))
 
 
 def test_legacy_anthropic_settings_still_work():
