@@ -1,5 +1,6 @@
 "use client";
 
+import { AiSafetyPanel } from "@/components/safety/AiSafetyPanel";
 import { LookupCard } from "@/components/safety/LookupCard";
 import { SafetyNotice } from "@/components/safety/SafetyNotice";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -9,6 +10,7 @@ export default function Page() {
     <div className="space-y-6">
       <PageHeader title="Look up a medicine" description="Search by name to see side effects, and whether it clashes with your medicines, conditions or allergies. Looking it up does not add it to your list." />
       <SafetyNotice />
+      <AiSafetyPanel mode="medicine" />
       <LookupCard />
     </div>
   );

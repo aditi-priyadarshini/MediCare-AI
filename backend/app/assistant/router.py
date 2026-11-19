@@ -2,12 +2,13 @@
 or message is indistinguishable from one that does not exist (404)."""
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbDep
-from app.assistant import retrieval
+from app.assistant import open_mode, retrieval
 from app.assistant import service as svc
 from app.assistant.models import AiEvidenceItem, ChatMessage, ChatSession
 from app.assistant.schemas import (
@@ -50,6 +51,7 @@ def _message_out(msg: ChatMessage, evidence: list[AiEvidenceItem]) -> MessageOut
         content=msg.content,
         safety_classification=msg.safety_classification,
         mode=(msg.model_metadata or {}).get("mode") if msg.role == "assistant" else None,
+        has_image=bool((msg.model_metadata or {}).get("image")) and msg.role == "user",
         created_at=msg.created_at,
         evidence=[_evidence_out(e) for e in evidence],
     )
@@ -81,7 +83,12 @@ def _detail(db, user, row: ChatSession) -> SessionDetail:
 @router.get("/assistant/status", response_model=StatusOut)
 def status(request: Request, user: CurrentUser, db: DbDep):
     llm = request.app.state.llm
-    notices = ["Answers use only the records you switch on for each chat."]
+    open_on = bool(request.app.state.settings.assistant_open_mode)
+    notices = (
+        ["Prototype: the AI answers any health question, using your current medicines."]
+        if open_on
+        else ["Answers use only the records you switch on for each chat."]
+    )
     if not llm.configured:
         notices.append(
             "No AI model is connected. The assistant lists the matching records and reference "
@@ -91,6 +98,8 @@ def status(request: Request, user: CurrentUser, db: DbDep):
         mode="llm" if llm.configured else "evidence_only",
         provider=",".join(m.name for m in getattr(llm, "members", [])) or llm.name,
         model=getattr(llm, "model", None) or None,
+        open_mode=open_on and llm.configured,
+        image_input=open_on and llm.configured,
         consent_granted=retrieval.ai_consent_granted(db, user),
         notices=notices,
     )
@@ -189,8 +198,14 @@ def delete_session(session_id: uuid.UUID, request: Request, user: CurrentUser, d
 
 
 # ----------------------------------------------------------------------------------- messages
-@router.post("/assistant/sessions/{session_id}/messages", response_model=AskOut, status_code=201)
-def ask(session_id: uuid.UUID, body: AskIn, request: Request, user: CurrentUser, db: DbDep):
+def _run_ask(
+    request: Request,
+    user,
+    db,
+    session_id: uuid.UUID,
+    content: str,
+    image=None,
+) -> AskOut:
     settings = request.app.state.settings
     enforce(request, "assistant", str(user.id), settings.assistant_requests_per_minute, 60)
     session = svc.owned_session_or_404(db, session_id, user)
@@ -198,23 +213,75 @@ def ask(session_id: uuid.UUID, body: AskIn, request: Request, user: CurrentUser,
         raise AppError(409, "SESSION_FULL", "This chat is full. Start a new chat.")
 
     llm = request.app.state.llm
-    answer = svc.answer_question(
-        db,
-        user,
-        question=body.content,
-        stored_context=session.context_mode,
-        consent=retrieval.ai_consent_granted(db, user),
-        language=session.language,
-        llm=llm,
-        max_tokens=settings.llm_max_output_tokens,
-    )
+    consent = retrieval.ai_consent_granted(db, user)
+    if settings.assistant_open_mode and llm.configured:
+        answer = svc.answer_open(
+            db,
+            user,
+            session=session,
+            question=content,
+            consent=consent,
+            llm=llm,
+            max_tokens=max(settings.llm_max_output_tokens, settings.open_max_output_tokens),
+            image=image,
+        )
+    else:
+        if image is not None:
+            raise AppError(
+                409,
+                "IMAGE_NOT_AVAILABLE",
+                "Picture questions need a connected AI model with open mode on.",
+            )
+        answer = svc.answer_question(
+            db,
+            user,
+            question=content,
+            stored_context=session.context_mode,
+            consent=consent,
+            language=session.language,
+            llm=llm,
+            max_tokens=settings.llm_max_output_tokens,
+        )
     user_msg, assistant_msg, rows = svc.persist_exchange(
-        db, request, user, session, body.content, answer, llm.name
+        db,
+        request,
+        user,
+        session,
+        content,
+        answer,
+        llm.name,
+        user_metadata={"image": True} if image is not None else None,
     )
     return AskOut(
         user_message=_message_out(user_msg, []),
         assistant_message=_message_out(assistant_msg, rows),
     )
+
+
+@router.post("/assistant/sessions/{session_id}/messages", response_model=AskOut, status_code=201)
+def ask(session_id: uuid.UUID, body: AskIn, request: Request, user: CurrentUser, db: DbDep):
+    return _run_ask(request, user, db, session_id, body.content)
+
+
+@router.post(
+    "/assistant/sessions/{session_id}/messages/image", response_model=AskOut, status_code=201
+)
+def ask_with_image(
+    session_id: uuid.UUID,
+    request: Request,
+    user: CurrentUser,
+    db: DbDep,
+    image: Annotated[UploadFile, File()],
+    content: Annotated[str, Form(max_length=2000)] = "",
+):
+    """A question with a picture (a photo taken now or one from the gallery). The picture goes
+    straight to the model; it is not stored, OCR'd or kept in the chat."""
+    settings = request.app.state.settings
+    picture = open_mode.read_image(image, settings.max_image_bytes)
+    if picture is None:
+        raise AppError(422, "VALIDATION_ERROR", "The picture is empty.")
+    text = content.strip() or svc.DEFAULT_IMAGE_QUESTION
+    return _run_ask(request, user, db, session_id, text, picture)
 
 
 @router.get("/assistant/messages/{message_id}/evidence", response_model=list[EvidenceOut])

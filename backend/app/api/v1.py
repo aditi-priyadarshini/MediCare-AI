@@ -16,6 +16,7 @@ from app.records.router import router as records_router
 from app.records.scan_router import router as scan_router
 from app.safety.admin import router as safety_admin_router
 from app.safety.ai_alternatives import router as safety_ai_alternatives_router
+from app.safety.ai_open import router as safety_ai_open_router
 from app.safety.ai_pairs import router as safety_ai_pairs_router
 from app.safety.ai_review import router as safety_ai_review_router
 from app.safety.personal import router as safety_personal_router
@@ -32,6 +33,7 @@ api_v1.include_router(medications_router)
 api_v1.include_router(safety_router)
 api_v1.include_router(safety_personal_router)
 api_v1.include_router(safety_ai_pairs_router)
+api_v1.include_router(safety_ai_open_router)
 api_v1.include_router(safety_ai_review_router)
 api_v1.include_router(safety_ai_alternatives_router)
 api_v1.include_router(safety_admin_router)

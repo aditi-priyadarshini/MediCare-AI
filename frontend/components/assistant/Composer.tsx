@@ -3,9 +3,10 @@
 import { Send } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { ContextChips } from "@/components/assistant/ContextChips";
+import { ImagePicker } from "@/components/ui/ImagePicker";
 import { Button } from "@/components/ui/primitives";
 import { VoiceInputButton } from "@/components/voice/VoiceInputButton";
-import { SUGGESTED_PROMPTS } from "@/lib/assistant";
+import { SUGGESTED_PROMPTS, SUGGESTED_PROMPTS_OPEN } from "@/lib/assistant";
 import { useT } from "@/lib/i18n";
 import type { AssistantContext, Language } from "@/lib/types";
 
@@ -22,13 +23,18 @@ interface Props {
   voiceOn: boolean;
   showPrompts: boolean;
   easy: boolean;
+  /** Prototype open mode: show the photo buttons and the open-mode prompts. */
+  openMode?: boolean;
+  /** The picture waiting to be sent with the next message. */
+  image?: File | null;
+  onImage?: (file: File | null) => void;
 }
 
-export function Composer({ value, onChange, onSend, busy, sending, context, language, voiceOn, showPrompts, easy }: Props) {
+export function Composer({ value, onChange, onSend, busy, sending, context, language, voiceOn, showPrompts, easy, openMode = false, image = null, onImage }: Props) {
   const { t } = useT();
   const field = useRef<HTMLTextAreaElement>(null);
   const wasBusy = useRef(false);
-  const canSend = value.trim().length > 0 && !busy;
+  const canSend = (value.trim().length > 0 || image !== null) && !busy;
 
   // After an answer arrives, put the cursor back in the box so the next question can be typed.
   useEffect(() => {
@@ -36,7 +42,8 @@ export function Composer({ value, onChange, onSend, busy, sending, context, lang
     wasBusy.current = busy;
   }, [busy]);
 
-  const prompts = easy ? SUGGESTED_PROMPTS.slice(0, 2) : SUGGESTED_PROMPTS;
+  const all = openMode ? SUGGESTED_PROMPTS_OPEN : SUGGESTED_PROMPTS;
+  const prompts = easy ? all.slice(0, 2) : all;
 
   return (
     <div className="space-y-3">
@@ -63,7 +70,10 @@ export function Composer({ value, onChange, onSend, busy, sending, context, lang
           </ul>
         </div>
       )}
-      <ContextChips context={context} />
+      {!openMode && <ContextChips context={context} />}
+      {openMode && onImage && (
+        <ImagePicker file={image} onChange={onImage} disabled={busy} hint="Photo of a medicine pack, prescription, rash…" />
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -97,7 +107,7 @@ export function Composer({ value, onChange, onSend, busy, sending, context, lang
         </Button>
       </form>
       <p id="ask-hint" className="text-xs text-ink-soft">
-        {t("assistant.composer.hint")}
+        {openMode ? t("assistant.composer.hintOpen") : t("assistant.composer.hint")}
       </p>
       {voiceOn && (
         <VoiceInputButton

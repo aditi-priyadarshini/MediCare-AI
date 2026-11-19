@@ -213,6 +213,21 @@ def test_ordered_chain_from_settings():
     assert chain.members[1].host == "integrate.api.nvidia.com"
 
 
+def test_comma_separated_models_become_ordered_fallbacks():
+    s = cfg(
+        llm_provider="gemini,openrouter",
+        gemini_api_key=KEY,
+        gemini_model=" gemini-a , gemini-b,gemini-c ",
+        openrouter_api_key=KEY,
+        openrouter_model="o",
+    )
+    chain = P.build_provider(s)
+    assert [m.name for m in chain.members] == ["gemini", "gemini-2", "gemini-3", "openrouter"]
+    assert [m.model for m in chain.members] == ["gemini-a", "gemini-b", "gemini-c", "o"]
+    with pytest.raises(ValueError, match="twice"):
+        P.build_provider(cfg(llm_provider="gemini", gemini_api_key=KEY, gemini_model="a,a"))
+
+
 def test_legacy_anthropic_settings_still_work():
     chain = P.build_provider(cfg(llm_provider="anthropic", llm_api_key=KEY))
     assert chain.members[0].name == "anthropic"

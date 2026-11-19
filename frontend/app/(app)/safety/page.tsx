@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowRight, ArrowLeftRight, ClipboardList, PackageCheck, Pill, Search, type LucideIcon } from "lucide-react";
+import { ArrowRight, ArrowLeftRight, ClipboardList, PackageCheck, Pill, Search, Sparkles, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/primitives";
 
 const TOOLS: Array<{ href: string; title: string; text: string; icon: LucideIcon }> = [
+  { href: "/safety/ai", title: "AI Safety Checker", text: "Type any two medicines, review everything you take, check food and drink, or send a photo. The AI answers.", icon: Sparkles },
   { href: "/safety/medicines", title: "My medicines", text: "A full AI review: interactions, conditions, allergies, food, age and side effects.", icon: Pill },
   { href: "/safety/lookup", title: "Look up a medicine", text: "Check any medicine against your list, conditions and allergies.", icon: Search },
   { href: "/safety/alternatives", title: "Generics and prices", text: "Find cheaper products with the same ingredients, with rough price estimates.", icon: ArrowLeftRight },
@@ -17,8 +18,8 @@ export default function SafetyPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Safety Checker" description="Pick what you want to do. Each tool has its own page." />
-      <Alert tone="info" title="A guide, not advice">
-        These tools use a small reference dataset. Finding nothing does not mean something is safe. Talk to a
+      <Alert tone="info" title="Prototype: answers come from AI">
+        The AI can be wrong or incomplete, and “no interaction found” does not mean something is safe. Check with a
         pharmacist or your prescriber before you start, stop or change a medicine.
       </Alert>
       <ul className="grid gap-4 sm:grid-cols-2">

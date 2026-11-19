@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { MessagesSquare, ShieldAlert, SlidersHorizontal, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Composer } from "@/components/assistant/Composer";
 import { ContextPanel } from "@/components/assistant/ContextControls";
 import { MessageList } from "@/components/assistant/MessageList";
@@ -34,7 +34,22 @@ interface Page<T> {
 type Busy = "create" | "open" | "send" | "context" | "delete";
 
 /** Always on screen, in the page itself (never in a tooltip), on every viewport. */
-function SafetyNotice() {
+function SafetyNotice({ open = false }: { open?: boolean }) {
+  if (open) {
+    return (
+      <div role="note" className="flex gap-3 rounded-lg border border-line bg-mint-100 p-3 text-sm text-ink">
+        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden />
+        <div>
+          <p>
+            <Tr k="assistant.notAdviceOpen" /> <Tr k="assistant.emergency" />
+          </p>
+          <Link href="/emergency" className="inline-flex min-h-[44px] items-center font-medium underline">
+            <Tr k="assistant.safety.urgent.page" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
   return (
     <div role="note" className="flex gap-3 rounded-lg border border-line bg-mint-100 p-3 text-sm text-ink">
       <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden />
@@ -74,6 +89,13 @@ export function AssistantView() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [chatsOpen, setChatsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // A picture waiting to be sent, and the previews of pictures sent in this page session.
+  const [image, setImage] = useState<File | null>(null);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const thumbRef = useRef<Record<string, string>>({});
+  thumbRef.current = thumbs;
+  useEffect(() => () => Object.values(thumbRef.current).forEach((u) => URL.revokeObjectURL(u)), []);
 
   /** Runs one action: marks what is in flight, shows a plain-language error, offers a retry. */
   async function guard<T>(kind: Busy, fn: () => Promise<T>, retryWith?: () => void): Promise<T | undefined> {
@@ -136,19 +158,35 @@ export function AssistantView() {
 
   async function send() {
     const text = question.trim();
-    if (!detail || !text || busy) return;
+    const picture = image;
+    if (!detail || (!text && !picture) || busy) return;
     const id = detail.id;
-    setPending(text);
+    setPending(text || t("assistant.photo.only"));
+    const preview = picture ? URL.createObjectURL(picture) : null;
+    setPendingImage(preview);
     const result = await guard(
       "send",
-      () => api<AskResult>(`/assistant/sessions/${id}/messages`, { method: "POST", body: { content: text } }),
+      () => {
+        if (!picture) {
+          return api<AskResult>(`/assistant/sessions/${id}/messages`, { method: "POST", body: { content: text } });
+        }
+        const form = new FormData();
+        form.append("content", text);
+        form.append("image", picture);
+        return api<AskResult>(`/assistant/sessions/${id}/messages/image`, { method: "POST", body: form });
+      },
       () => void send(),
     );
     setPending(null);
+    setPendingImage(null);
     if (result) {
       setQuestion("");
+      setImage(null);
+      if (preview) setThumbs((m) => ({ ...m, [result.user_message.id]: preview }));
       setDetail((d) => (d && d.id === id ? { ...d, messages: [...d.messages, result.user_message, result.assistant_message] } : d));
       void sessions.reload();
+    } else if (preview) {
+      URL.revokeObjectURL(preview); // the picture stays selected, so a retry sends it again
     }
   }
 
@@ -161,9 +199,10 @@ export function AssistantView() {
     );
   }
 
+  const openMode = status.data?.open_mode === true;
   const list = sessions.data?.items ?? [];
   const consent = detail?.consent_granted ?? status.data?.consent_granted ?? false;
-  const showPanel = isXl && panelOpen && detail !== null;
+  const showPanel = isXl && panelOpen && detail !== null && !openMode;
   const controls = detail && {
     context: detail.context,
     consentGranted: consent,
@@ -236,9 +275,9 @@ export function AssistantView() {
                 </div>
               }
             >
-              {t("assistant.empty.body")}
+              {openMode ? t("assistant.empty.bodyOpen") : t("assistant.empty.body")}
             </EmptyState>
-            <SafetyNotice />
+            <SafetyNotice open={openMode} />
           </>
         ) : (
           <Card aria-label={detail.title} className="space-y-4">
@@ -250,6 +289,7 @@ export function AssistantView() {
                     <MessagesSquare className="h-4 w-4" aria-hidden /> {t("assistant.chats.open")}
                   </Button>
                 )}
+                {!openMode && (
                 <Button
                   variant="ghost"
                   aria-expanded={isXl ? panelOpen : undefined}
@@ -258,6 +298,7 @@ export function AssistantView() {
                   <SlidersHorizontal className="h-4 w-4" aria-hidden />{" "}
                   {isXl ? (panelOpen ? t("assistant.panel.hide") : t("assistant.panel.show")) : t("assistant.panel.open")}
                 </Button>
+                )}
                 <Button variant="ghost" onClick={() => setDeleteOpen(true)} aria-label={t("assistant.delete.aria")} disabled={busy !== null}>
                   <Trash2 className="h-4 w-4" aria-hidden /> {t("assistant.delete")}
                 </Button>
@@ -275,8 +316,10 @@ export function AssistantView() {
               timeZone={timeZone}
               voiceOn={voiceOn}
               easy={easy}
+              images={thumbs}
+              pendingImage={pendingImage}
             />
-            <SafetyNotice />
+            <SafetyNotice open={openMode} />
             <Composer
               value={question}
               onChange={setQuestion}
@@ -288,6 +331,9 @@ export function AssistantView() {
               voiceOn={voiceOn}
               showPrompts={detail.messages.length === 0 && !pending}
               easy={easy}
+              openMode={openMode}
+              image={image}
+              onImage={setImage}
             />
           </Card>
         )}
@@ -301,7 +347,7 @@ export function AssistantView() {
 
       {/* Phones and tablets: the switches open as a sheet from the bottom edge. */}
       <Dialog
-        open={sheetOpen && !isXl && controls !== null}
+        open={sheetOpen && !isXl && !openMode && controls !== null}
         onClose={() => setSheetOpen(false)}
         title={t("assistant.panel.open")}
         className="max-h-[85vh] overflow-y-auto"

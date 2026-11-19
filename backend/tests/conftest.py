@@ -70,6 +70,8 @@ def settings(tmp_path) -> Settings:
         email_backend="memory",
         rate_limit_enabled=False,
         otp_resend_cooldown_seconds=0,
+        # The original suite pins the strict evidence-only behaviour; open mode has its own tests.
+        assistant_open_mode=False,
     )
 
 

@@ -70,7 +70,8 @@ class MessageOut(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     safety_classification: str | None
-    mode: str | None  # "llm", "evidence_only", "fallback" or "canned"; assistant messages only
+    mode: str | None  # "open", "llm", "evidence_only", "fallback" or "canned"; assistant only
+    has_image: bool = False  # the patient attached a picture (it is not stored)
     created_at: datetime
     evidence: list[EvidenceOut] = []
 
@@ -98,6 +99,8 @@ class AskOut(BaseModel):
 
 class StatusOut(BaseModel):
     mode: Literal["llm", "evidence_only"]
+    open_mode: bool = False
+    image_input: bool = False
     provider: str
     model: str | None
     consent_granted: bool

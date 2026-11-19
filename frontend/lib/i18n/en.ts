@@ -405,6 +405,17 @@ export const en = {
   "assistant.mode.note.fallback":
     "The AI draft did not pass our checks, so your records are listed as recorded.",
   "assistant.mode.note.canned": "Standard safety text.",
+  "assistant.mode.open": "Answered by AI",
+  "assistant.mode.note.open": "Written by an AI model from general medical knowledge and the medicines you take. It can be wrong.",
+  "assistant.photo.sent": "Picture sent",
+  "assistant.photo.only": "(picture)",
+  "assistant.notAdviceOpen": "Prototype: answers are written by AI and can be wrong. Check with a pharmacist or doctor before you rely on them.",
+  "assistant.empty.bodyOpen": "Ask any health question. The AI can suggest over-the-counter medicines that suit what you already take, and read a photo of a pack or prescription.",
+  "assistant.prompt.open.1": "What can I take for a headache with my current medicines?",
+  "assistant.prompt.open.2": "Is it okay to take ibuprofen along with my medicines?",
+  "assistant.prompt.open.3": "I have a cold and a sore throat. What can I take?",
+  "assistant.prompt.open.4": "Read the medicine in my photo and tell me what it is for.",
+  "assistant.composer.hintOpen": "Ask anything about your health or medicines. You can add a photo, such as a medicine pack, a prescription or a rash.",
   "assistant.safety.urgent.title": "This may be urgent",
   "assistant.safety.urgent.body":
     "If you or someone else may be in danger, call 112 now. The assistant cannot call for you.",
