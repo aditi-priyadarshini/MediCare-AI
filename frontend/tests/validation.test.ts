@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isE164, isSixDigitCode, passwordProblem, toE164 } from "@/lib/validation";
+import { isE164, isSixDigitCode, passwordChecks, passwordProblem, toE164 } from "@/lib/validation";
 
 describe("passwordProblem (mirrors backend rules)", () => {
   it("accepts a long passphrase", () => {
@@ -34,4 +34,18 @@ it("validates 6-digit codes", () => {
   expect(isSixDigitCode("123456")).toBe(true);
   expect(isSixDigitCode("12345")).toBe(false);
   expect(isSixDigitCode("12a456")).toBe(false);
+});
+
+describe("passwordChecks (live checklist)", () => {
+  const met = (pw: string, email?: string) => Object.fromEntries(passwordChecks(pw, email).map((c) => [c.id, c.met]));
+  it("starts with nothing met", () => {
+    expect(met("")).toEqual({ length: false, variety: false, email: false });
+  });
+  it("agrees with passwordProblem", () => {
+    for (const pw of ["short", "1234567890123", "aaaaaaaaaaaa", "correct-horse-battery-staple"]) {
+      expect(passwordChecks(pw).every((c) => c.met)).toBe(passwordProblem(pw) === null);
+    }
+    expect(passwordChecks("A@b.com", "a@b.com").every((c) => c.met)).toBe(false);
+    expect(met("correct-horse-battery", "me@x.com")).toEqual({ length: true, variety: true, email: true });
+  });
 });

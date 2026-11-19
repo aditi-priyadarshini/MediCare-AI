@@ -32,6 +32,15 @@ Extend `login-form.test.tsx`, `admin-ui.test.tsx`, `admin-lib.test.ts`; add test
 - All admin actions still work; destructive ones confirm.
 - Lint, typecheck, test, build pass.
 
+## Handoff — Part 1 (auth) written, Part 2 (admin) not started
+**Changed:** `app/(auth)/layout.tsx` (split screen: brand/trust panel from `lg`, single column below; redirect logic untouched), `login`, `register`, `verify-email`, `forgot-password`, `reset-password` screens, `components/auth/GoogleButton.tsx`, `app/not-found.tsx`.
+**New:** `components/auth/AuthHeading.tsx`, `components/auth/PasswordRequirements.tsx` (live checklist, text + icon), `passwordChecks()` in `lib/validation.ts` (same rules as `passwordProblem`).
+**Behaviour kept:** 409 existing-account error still comes from the server; neutral reset wording is unchanged; OTP is still one input with `autocomplete="one-time-code"` (more reliable for autofill than six boxes); `/` still redirects (dashboard when signed in, else login via the app layout).
+**Trust copy:** private by default, not a medical device, medicines marked taken only by the user, plus the existing synthetic-data notice. No certification claims (a test guards this).
+**404:** friendly page with "Go to home" (`/`) and "Emergency help" (`/emergency`).
+**Tests:** `tests/auth-ui.test.tsx` (new: redirects, trust copy, requirements, 409, cooldown countdown/restart, OTP validation, neutral wording, 404, axe on every auth screen), additions to `login-form.test.tsx` and `validation.test.ts`.
+**Not done:** vitest, lint, typecheck and `next build` were NOT run; files were only syntax-checked. Auth strings are still English-only, as before this phase (they were never in `lib/i18n`). No live browser check at 320px. Admin console (Part 2) untouched.
+
 ## Paste-ready prompt
 ```
 Read docs/UI_REDESIGN/README.md, 00-MASTER-SPEC.md and do Phase F from

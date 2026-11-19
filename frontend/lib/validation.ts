@@ -11,6 +11,26 @@ export function passwordProblem(password: string, email?: string): string | null
   return null;
 }
 
+export interface PasswordCheck {
+  id: "length" | "variety" | "email";
+  label: string;
+  met: boolean;
+}
+
+/** The same rules as passwordProblem, one line each, for a live checklist while typing. */
+export function passwordChecks(password: string, email?: string): PasswordCheck[] {
+  const em = email?.trim().toLowerCase() ?? "";
+  return [
+    { id: "length", label: `At least ${PASSWORD_MIN} characters`, met: password.length >= PASSWORD_MIN && password.length <= 128 },
+    {
+      id: "variety",
+      label: "Not only numbers or a few repeated characters",
+      met: password.length > 0 && !/^\d+$/.test(password) && new Set(password).size >= 4,
+    },
+    { id: "email", label: "Different from your email address", met: password.length > 0 && password.toLowerCase() !== em },
+  ];
+}
+
 export const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
 export const isE164 = (v: string) => /^\+[1-9]\d{7,14}$/.test(v);
