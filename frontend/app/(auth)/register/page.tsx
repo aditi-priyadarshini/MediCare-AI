@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AuthHeading } from "@/components/auth/AuthHeading";
+import { PasswordRequirements } from "@/components/auth/PasswordRequirements";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Alert, Button, PasswordField, TextField } from "@/components/ui/primitives";
 import { errorMessage, fieldErrors } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import { isEmail, passwordProblem, PASSWORD_MIN } from "@/lib/validation";
+import { isEmail, passwordProblem } from "@/lib/validation";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -43,12 +45,9 @@ export default function RegisterPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-navy-900">Create your account</h1>
-        <p className="mt-1 text-sm text-ink-soft">
-          Your records are private by default. Only you can see them.
-        </p>
-      </div>
+      <AuthHeading title="Create your account">
+        Your records are private by default. Only you can see them.
+      </AuthHeading>
       {formError && <Alert tone="danger" title="Couldn’t create your account">{formError}</Alert>}
       <form onSubmit={onSubmit} noValidate className="space-y-4">
         <TextField
@@ -63,6 +62,8 @@ export default function RegisterPage() {
           type="email"
           autoComplete="email"
           inputMode="email"
+          autoCapitalize="none"
+          spellCheck={false}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           error={errors.email}
@@ -73,16 +74,20 @@ export default function RegisterPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={errors.password}
-          hint={`At least ${PASSWORD_MIN} characters. A passphrase of a few words works well.`}
         />
+        <PasswordRequirements password={password} email={email} />
+        <p className="text-xs text-ink-soft">
+          A passphrase of a few words works well. If this email already has an account, we’ll tell you so you can
+          sign in instead.
+        </p>
         <Button type="submit" fullWidth loading={busy}>
           Create account
         </Button>
       </form>
       <GoogleButton />
-      <p className="text-center text-sm text-ink-soft">
+      <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm text-ink-soft">
         Already registered?{" "}
-        <Link href="/login" className="font-semibold text-teal-700 underline">
+        <Link href="/login" className="inline-flex min-h-[44px] items-center font-semibold text-teal-700 underline">
           Sign in
         </Link>
       </p>

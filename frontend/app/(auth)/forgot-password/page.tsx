@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { AuthHeading } from "@/components/auth/AuthHeading";
 import { Alert, Button, TextField } from "@/components/ui/primitives";
 import { api, errorMessage } from "@/lib/api-client";
 import { isEmail } from "@/lib/validation";
@@ -32,10 +33,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-navy-900">Reset your password</h1>
-        <p className="mt-1 text-sm text-ink-soft">We’ll email you a 6-digit code.</p>
-      </div>
+      <AuthHeading title="Reset your password">We’ll email you a 6-digit code.</AuthHeading>
       {error && <Alert tone="danger" title="Couldn’t send code">{error}</Alert>}
       {sent ? (
         <>
@@ -45,7 +43,7 @@ export default function ForgotPasswordPage() {
           </Alert>
           <Link
             href="/reset-password"
-            className="flex min-h-[44px] items-center justify-center rounded-lg bg-teal-700 text-sm font-semibold text-white"
+            className="flex min-h-control items-center justify-center rounded-lg bg-teal-700 text-sm font-semibold text-white transition-colors duration-fast hover:bg-brand-900"
           >
             I have a code
           </Link>
@@ -57,6 +55,8 @@ export default function ForgotPasswordPage() {
             type="email"
             autoComplete="email"
             inputMode="email"
+            autoCapitalize="none"
+            spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
         </form>
       )}
       <p className="text-center text-sm">
-        <Link href="/login" className="font-semibold text-teal-700 underline">
+        <Link href="/login" className="inline-flex min-h-[44px] items-center font-semibold text-teal-700 underline">
           Back to sign in
         </Link>
       </p>

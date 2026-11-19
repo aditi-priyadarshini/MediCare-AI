@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { AuthHeading } from "@/components/auth/AuthHeading";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Alert, Button, PasswordField, TextField } from "@/components/ui/primitives";
 import { errorMessage, fieldErrors } from "@/lib/api-client";
@@ -50,10 +51,7 @@ export function LoginForm() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-navy-900">Welcome back</h1>
-        <p className="mt-1 text-sm text-ink-soft">Sign in to your health record.</p>
-      </div>
+      <AuthHeading title="Welcome back">Sign in to your health record.</AuthHeading>
 
       {justReset && <Alert tone="success" title="Password updated">Sign in with your new password.</Alert>}
       {oauthError && <Alert tone="danger" title="Couldn’t sign in with Google">{oauthError}</Alert>}
@@ -65,6 +63,8 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           inputMode="email"
+          autoCapitalize="none"
+          spellCheck={false}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           error={errors.email}
@@ -77,7 +77,7 @@ export function LoginForm() {
           error={errors.password}
         />
         <div className="text-right text-sm">
-          <Link href="/forgot-password" className="font-medium text-teal-700 underline">
+          <Link href="/forgot-password" className="inline-flex min-h-[44px] items-center font-medium text-teal-700 underline">
             Forgot password?
           </Link>
         </div>
@@ -88,9 +88,9 @@ export function LoginForm() {
 
       <GoogleButton />
 
-      <p className="text-center text-sm text-ink-soft">
+      <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm text-ink-soft">
         New here?{" "}
-        <Link href="/register" className="font-semibold text-teal-700 underline">
+        <Link href="/register" className="inline-flex min-h-[44px] items-center font-semibold text-teal-700 underline">
           Create an account
         </Link>
       </p>

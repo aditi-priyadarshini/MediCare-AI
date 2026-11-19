@@ -1,7 +1,9 @@
 "use client";
 
+import { MailCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AuthHeading } from "@/components/auth/AuthHeading";
 import { Alert, Button, PageLoading, TextField } from "@/components/ui/primitives";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
@@ -58,12 +60,13 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-navy-900">Check your email</h1>
-        <p className="mt-1 text-sm text-ink-soft">
-          We sent a 6-digit code to <strong className="text-ink">{user.email}</strong>. It expires in 10 minutes.
-        </p>
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-mint-100 text-teal-700" aria-hidden>
+        <MailCheck className="h-6 w-6" />
       </div>
+      <AuthHeading title="Check your email">
+        We sent a 6-digit code to <strong className="break-all text-ink">{user.email}</strong>. The code expires in 10
+        minutes, and only the newest code works.
+      </AuthHeading>
       {error && <Alert tone="danger" title="Couldn’t verify">{error}</Alert>}
       {notice && <Alert tone="success" title="Code sent">{notice}</Alert>}
       <form onSubmit={onSubmit} noValidate className="space-y-4">
@@ -72,21 +75,30 @@ export default function VerifyEmailPage() {
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={6}
+          pattern="[0-9]*"
+          hint="Enter the 6 digits. Not there? Check your spam folder."
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-          className="text-center text-2xl tracking-[0.4em]"
+          className="tnum text-center text-2xl tracking-[0.4em]"
         />
         <Button type="submit" fullWidth loading={busy}>
           Verify email
         </Button>
       </form>
-      <div className="flex items-center justify-between text-sm">
-        <Button variant="ghost" onClick={resend} disabled={cooldown.left > 0}>
-          {cooldown.left > 0 ? `Resend code in ${cooldown.left}s` : "Resend code"}
-        </Button>
-        <Button variant="ghost" onClick={() => void logout().then(() => router.replace("/login"))}>
-          Use a different account
-        </Button>
+      <div className="border-t border-line pt-4">
+        <p className="text-sm text-ink-soft">
+          {cooldown.left > 0
+            ? `You can ask for a new code in ${cooldown.left} seconds.`
+            : "Didn’t get a code? You can ask for a new one now."}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <Button variant="secondary" onClick={resend} disabled={cooldown.left > 0}>
+            {cooldown.left > 0 ? `Resend code in ${cooldown.left}s` : "Resend code"}
+          </Button>
+          <Button variant="ghost" onClick={() => void logout().then(() => router.replace("/login"))}>
+            Use a different account
+          </Button>
+        </div>
       </div>
     </div>
   );

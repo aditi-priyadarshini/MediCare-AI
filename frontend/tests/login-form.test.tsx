@@ -73,6 +73,18 @@ describe("LoginForm", () => {
     expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("uses autofill-friendly attributes", () => {
+    render(<LoginForm />);
+    expect(screen.getByLabelText("Email")).toHaveAttribute("autocomplete", "email");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("autocomplete", "current-password");
+  });
+
+  it("confirms a finished password reset with a status message", () => {
+    search = "reset=1";
+    render(<LoginForm />);
+    expect(screen.getByRole("status")).toHaveTextContent(/Password updated/);
+  });
+
   it("explains OAuth failures from the redirect", () => {
     search = "error=oauth_state";
     render(<LoginForm />);
