@@ -23,7 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.assistant import evidence as ev
-from app.assistant import policy, retrieval
+from app.assistant import open_mode, policy, retrieval
 from app.assistant.models import (
     AiEvidenceItem,
     ChatContextAccessLog,
@@ -31,7 +31,7 @@ from app.assistant.models import (
     ChatSession,
 )
 from app.assistant.prompts import SYSTEM_PROMPT, build_repair_note, build_user_prompt
-from app.assistant.provider import LLMProvider, LLMUnavailable
+from app.assistant.provider import ImageInput, LLMProvider, LLMUnavailable
 from app.assistant.schemas import ContextIn
 from app.assistant.validate import validate_answer
 from app.audit.service import record as audit
@@ -264,6 +264,71 @@ def answer_question(
     )
 
 
+# ------------------------------------------------------------------------------- open mode
+HISTORY_TURNS = 8
+DEFAULT_IMAGE_QUESTION = "What can you tell me about this picture?"
+
+
+def recent_turns(db: Session, session_id: uuid.UUID) -> list[tuple[str, str]]:
+    rows = db.execute(
+        select(ChatMessage.role, ChatMessage.content)
+        .where(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.role)
+        .limit(HISTORY_TURNS)
+    ).all()
+    # Stored answers end with the fixed footer lines; the model does not need them again.
+    return [(role, content.split(open_mode.OPEN_FOOTER)[0]) for role, content in reversed(rows)]
+
+
+def answer_open(
+    db: Session,
+    user,
+    *,
+    session: ChatSession,
+    question: str,
+    consent: bool,
+    llm: LLMProvider,
+    max_tokens: int,
+    image: ImageInput | None = None,
+) -> Answer:
+    """Prototype open mode: ask the model directly, with the patient's current medicines,
+    conditions and allergies as context. Nothing the model writes is blocked."""
+    context = open_mode.patient_context(db, user) if consent else None
+    prompt = open_mode.build_chat_prompt(
+        question=policy.redact_question(question),
+        language=session.language,
+        context=context,
+        history=open_mode.history_block(recent_turns(db, session.id)),
+        has_image=image is not None,
+    )
+    try:
+        result = llm.complete(
+            system=open_mode.SYSTEM_PROMPT,
+            user=prompt,
+            max_tokens=max_tokens,
+            images=[image] if image else None,
+        )
+    except LLMUnavailable as exc:
+        raise AppError(
+            503, "AI_UNAVAILABLE", "The AI model did not answer just now. Please try again."
+        ) from exc
+    metadata: dict = {
+        "mode": "open",
+        "provider": result.provider,
+        "model": result.model,
+        "records_used": context is not None,
+        "image": image is not None,
+        "context": {"medicines": True, "history": True, "allergies": True} if context else {},
+        "providers_contacted": list(result.attempted or (result.provider,)),
+    }
+    text = open_mode.finish(
+        result.text,
+        urgent=open_mode.is_urgent(question),
+        note=open_mode.consent_note(consent),
+    )
+    return Answer(text, "answered", metadata)
+
+
 # --------------------------------------------------------------------------------- sessions
 def owned_session_or_404(db: Session, session_id: uuid.UUID, user) -> ChatSession:
     row = db.get(ChatSession, session_id)
@@ -338,12 +403,17 @@ def persist_exchange(
     question: str,
     answer: Answer,
     provider_name: str,
+    user_metadata: dict | None = None,
 ) -> tuple[ChatMessage, ChatMessage, list[AiEvidenceItem]]:
     """Stores both messages, the evidence references, the access log and the audit row."""
     # Explicit timestamps: now() is fixed for a whole transaction, so both messages would tie.
     sent_at = datetime.now(UTC)
     user_msg = ChatMessage(
-        session_id=session.id, role="user", content=question, model_metadata={}, created_at=sent_at
+        session_id=session.id,
+        role="user",
+        content=question,
+        model_metadata=user_metadata or {},
+        created_at=sent_at,
     )
     db.add(user_msg)
     db.flush()
@@ -374,7 +444,7 @@ def persist_exchange(
     ]
     db.add_all(rows)
 
-    if answer.items:
+    if answer.items or answer.metadata.get("records_used"):
         db.add(
             ChatContextAccessLog(
                 patient_user_id=user.id,

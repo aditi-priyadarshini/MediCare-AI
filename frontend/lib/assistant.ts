@@ -32,6 +32,14 @@ export const SUGGESTED_PROMPTS: MessageKey[] = [
   "assistant.prompt.4",
 ];
 
+/** Suggested questions in prototype open mode. */
+export const SUGGESTED_PROMPTS_OPEN: MessageKey[] = [
+  "assistant.prompt.open.1",
+  "assistant.prompt.open.2",
+  "assistant.prompt.open.3",
+  "assistant.prompt.open.4",
+];
+
 /* ------------------------------------------------------------------ evidence */
 export const SOURCE_LABEL_KEY: Record<EvidenceItem["source_type"], MessageKey> = {
   lab_result: "assistant.source.lab_result",
@@ -79,6 +87,7 @@ export function orderEvidence(items: EvidenceItem[]): EvidenceItem[] {
 
 /* ------------------------------------------------------------------ answer mode */
 export const MODE_NOTE_KEY: Record<AssistantMode, MessageKey> = {
+  open: "assistant.mode.note.open",
   llm: "assistant.mode.note.llm",
   evidence_only: "assistant.mode.note.evidence_only",
   fallback: "assistant.mode.note.fallback",
@@ -87,6 +96,7 @@ export const MODE_NOTE_KEY: Record<AssistantMode, MessageKey> = {
 
 /** English notes (kept for callers that do not translate). */
 export const MODE_NOTE: Record<AssistantMode, string> = {
+  open: en["assistant.mode.note.open"],
   llm: en["assistant.mode.note.llm"],
   evidence_only: en["assistant.mode.note.evidence_only"],
   fallback: en["assistant.mode.note.fallback"],
@@ -104,6 +114,8 @@ export interface ModeBadge {
  */
 export function modeBadge(message: Pick<ChatMessage, "mode" | "evidence">): ModeBadge | null {
   switch (message.mode) {
+    case "open":
+      return { key: "assistant.mode.open", tone: "ai" };
     case "llm":
       return message.evidence.some(isPatientEvidence)
         ? { key: "assistant.mode.llmRecords", tone: "ai" }

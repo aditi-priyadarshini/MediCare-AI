@@ -19,6 +19,17 @@ interface BubbleProps {
   timeZone: string | null;
   voiceOn: boolean;
   easy: boolean;
+  /** A picture the person sent in this browser session, shown with their message. */
+  imageUrl?: string;
+}
+
+/** The picture sent with a question (only while this page is open; pictures are not stored). */
+function SentPicture({ url, label }: { url?: string; label: string }) {
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt={label} className="mb-2 max-h-48 rounded-lg object-contain" />;
+  }
+  return <p className="mb-1 text-xs opacity-80">📷 {label}</p>;
 }
 
 /** Plain text only: model output is never interpreted as HTML or markdown. */
@@ -99,7 +110,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function Bubble({ message, language, timeZone, voiceOn, easy }: BubbleProps) {
+function Bubble({ message, language, timeZone, voiceOn, easy, imageUrl }: BubbleProps) {
   const { t } = useT();
   const mine = message.role === "user";
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -126,6 +137,7 @@ function Bubble({ message, language, timeZone, voiceOn, easy }: BubbleProps) {
           mine ? "bg-teal-700 text-white" : "border border-lavender-100 border-l-4 border-l-lavender-700 bg-surface",
         )}
       >
+        {mine && (imageUrl || message.has_image) && <SentPicture url={imageUrl} label={t("assistant.photo.sent")} />}
         {mine ? <p className="whitespace-pre-wrap">{message.content}</p> : <AnswerText message={message} onCite={cite} />}
       </div>
       {!mine && (
@@ -153,6 +165,10 @@ interface ListProps {
   timeZone: string | null;
   voiceOn: boolean;
   easy: boolean;
+  /** Picture previews for messages sent in this session, by message id. */
+  images?: Record<string, string>;
+  /** Preview of the picture sent with the question that is waiting for an answer. */
+  pendingImage?: string | null;
 }
 
 /**
@@ -160,7 +176,7 @@ interface ListProps {
  * at the bottom; if they have scrolled up it leaves them there and offers a "new message" button.
  * There is no streaming and no typing animation: while waiting it shows a plain working state.
  */
-export function MessageList({ messages, pending, language, timeZone, voiceOn, easy }: ListProps) {
+export function MessageList({ messages, pending, language, timeZone, voiceOn, easy, images, pendingImage }: ListProps) {
   const { t } = useT();
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -207,12 +223,13 @@ export function MessageList({ messages, pending, language, timeZone, voiceOn, ea
         className="max-h-[55vh] space-y-4 overflow-y-auto pr-1"
       >
         {messages.map((m) => (
-          <Bubble key={m.id} message={m} language={language} timeZone={timeZone} voiceOn={voiceOn} easy={easy} />
+          <Bubble key={m.id} message={m} language={language} timeZone={timeZone} voiceOn={voiceOn} easy={easy} imageUrl={images?.[m.id]} />
         ))}
         {pending && (
           <>
             <article className="ml-auto w-full max-w-[85%] opacity-80" aria-label={t("assistant.you")}>
               <div className={cn("rounded-lg bg-teal-700 p-3 text-white", easy ? "text-lg" : "text-base")}>
+                {pendingImage && <SentPicture url={pendingImage} label={t("assistant.photo.sent")} />}
                 <p className="whitespace-pre-wrap">{pending}</p>
               </div>
               <p className="mt-1 text-right text-xs text-ink-soft">{t("assistant.sending")}</p>

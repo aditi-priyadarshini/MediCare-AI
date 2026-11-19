@@ -134,6 +134,24 @@ AI safety review and generic finder (added after Phase 9):
 
 Deferred from Phase 1: optional phone OTP, caregiver delegation. Onboarding still omits a "current medicines" step; medicines are added from the Medicines page.
 
+## Prototype open mode (AI answers, photos, AI Safety Checker)
+
+This build is a prototype, so the strict "explain only the records" rules are off by default
+(`ASSISTANT_OPEN_MODE=true`). Set it to `false` to get the original behaviour back.
+
+- **AI Health Assistant** answers any health question, including over-the-counter suggestions that
+  take the medicines, conditions and allergies already on the patient's list into account. The
+  last few messages are passed along so follow-ups work. A server-added footer and an emergency
+  heads-up for urgent words are the only fixed text; nothing is blocked.
+- **Photos**: *Take photo* and *Upload photo* in the assistant and in the Safety Checker. The
+  picture goes straight to the model (not OCR), is shrunk in the browser, is never stored, and
+  needs a vision-capable model (Gemini, Claude, gpt-4o...).
+- **AI Safety Checker** (`/safety/ai`, `POST /safety/ai/ask`): type any two medicines, review
+  all current medicines, check one medicine against the patient, check food and alcohol, or ask a
+  free question with a photo. Every answer is from the model and can be asked again.
+- Patient records reach the model only with the "AI uses my records" consent, never with a name or
+  contact detail, and each call is written to the disclosure log.
+
 ## Run it
 
 ```bash

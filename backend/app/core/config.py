@@ -134,6 +134,12 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 30
     llm_max_output_tokens: int = 700
     assistant_requests_per_minute: int = 20
+    # Prototype "open mode": the model answers any health question (including OTC suggestions
+    # based on the patient's current medicines), pictures go to the model, and the evidence-only
+    # rules are off. Set ASSISTANT_OPEN_MODE=false for the original strict behaviour.
+    assistant_open_mode: bool = True
+    open_max_output_tokens: int = 1500
+    max_image_bytes: int = 5 * 1024 * 1024
 
     # Sharing (Phase 8): how long a recipient's verified view session lasts. The grant itself is
     # re-checked on every request, so revoking ends access immediately regardless of this.

@@ -450,10 +450,13 @@ export interface AdverseEvent {
 export type ContextKey = "medicines" | "history" | "labs" | "doses" | "allergies";
 export type AssistantContext = Record<ContextKey, boolean>;
 export type AssistantLanguage = "en" | "hi" | "or";
-export type AssistantMode = "llm" | "evidence_only" | "fallback" | "canned";
+export type AssistantMode = "open" | "llm" | "evidence_only" | "fallback" | "canned";
 
 export interface AssistantStatus {
   mode: "llm" | "evidence_only";
+  /** Prototype open mode: the AI answers any health question and accepts pictures. */
+  open_mode?: boolean;
+  image_input?: boolean;
   provider: string;
   model: string | null;
   consent_granted: boolean;
@@ -485,6 +488,8 @@ export interface ChatMessage {
   content: string;
   safety_classification: string | null;
   mode: AssistantMode | null;
+  /** The person attached a picture to this message (the picture itself is not stored). */
+  has_image?: boolean;
   created_at: string;
   evidence: EvidenceItem[];
 }

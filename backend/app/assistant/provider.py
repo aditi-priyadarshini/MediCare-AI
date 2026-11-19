@@ -22,7 +22,7 @@ import logging
 import re
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.parse import urlsplit
@@ -48,6 +48,14 @@ class LLMUnavailable(Exception):  # noqa: N818 - reads better than LLMUnavailabl
 
 
 @dataclass(frozen=True)
+class ImageInput:
+    """One picture sent with a request (a photo of a pack, a rash, a prescription...)."""
+
+    media_type: str  # image/jpeg, image/png or image/webp
+    data_b64: str  # base64 of the raw bytes, no "data:" prefix
+
+
+@dataclass(frozen=True)
 class LLMResult:
     text: str
     model: str
@@ -60,7 +68,9 @@ class LLMProvider(Protocol):
     name: str
     configured: bool
 
-    def complete(self, *, system: str, user: str, max_tokens: int) -> LLMResult: ...
+    def complete(
+        self, *, system: str, user: str, max_tokens: int, images: Sequence[ImageInput] | None = None
+    ) -> LLMResult: ...
 
 
 class UnconfiguredProvider:
@@ -70,7 +80,9 @@ class UnconfiguredProvider:
     configured = False
     model = ""
 
-    def complete(self, *, system: str, user: str, max_tokens: int) -> LLMResult:
+    def complete(
+        self, *, system: str, user: str, max_tokens: int, images: Sequence[ImageInput] | None = None
+    ) -> LLMResult:
         raise LLMUnavailable("No language model is configured.")
 
 
@@ -96,6 +108,36 @@ def _post(provider: str, url: str, headers: dict, body: dict, timeout: float) ->
     return data
 
 
+def _anthropic_content(user: str, images: Sequence[ImageInput] | None):
+    if not images:
+        return user
+    blocks: list[dict] = [
+        {
+            "type": "image",
+            "source": {"type": "base64", "media_type": i.media_type, "data": i.data_b64},
+        }
+        for i in images
+    ]
+    return [*blocks, {"type": "text", "text": user}]
+
+
+def _openai_content(user: str, images: Sequence[ImageInput] | None):
+    if not images:
+        return user
+    parts: list[dict] = [{"type": "text", "text": user}]
+    parts += [
+        {"type": "image_url", "image_url": {"url": f"data:{i.media_type};base64,{i.data_b64}"}}
+        for i in images
+    ]
+    return parts
+
+
+def _gemini_parts(user: str, images: Sequence[ImageInput] | None) -> list[dict]:
+    parts: list[dict] = [{"text": user}]
+    parts += [{"inlineData": {"mimeType": i.media_type, "data": i.data_b64}} for i in images or ()]
+    return parts
+
+
 class AnthropicProvider:
     kind = "anthropic"
     configured = True
@@ -104,7 +146,9 @@ class AnthropicProvider:
         self._key, self.model, self._timeout, self.name = api_key, model, timeout, name
         self.host = urlsplit(ANTHROPIC_URL).hostname or ""
 
-    def complete(self, *, system: str, user: str, max_tokens: int) -> LLMResult:
+    def complete(
+        self, *, system: str, user: str, max_tokens: int, images: Sequence[ImageInput] | None = None
+    ) -> LLMResult:
         data = _post(
             self.name,
             ANTHROPIC_URL,
@@ -117,7 +161,7 @@ class AnthropicProvider:
                 "model": self.model,
                 "max_tokens": max_tokens,
                 "system": system,
-                "messages": [{"role": "user", "content": user}],
+                "messages": [{"role": "user", "content": _anthropic_content(user, images)}],
             },
             self._timeout,
         )
@@ -154,7 +198,9 @@ class OpenAICompatibleProvider:
             self._headers["authorization"] = f"Bearer {api_key}"
         self.host = urlsplit(base_url).hostname or ""
 
-    def complete(self, *, system: str, user: str, max_tokens: int) -> LLMResult:
+    def complete(
+        self, *, system: str, user: str, max_tokens: int, images: Sequence[ImageInput] | None = None
+    ) -> LLMResult:
         data = _post(
             self.name,
             self._url,
@@ -165,7 +211,7 @@ class OpenAICompatibleProvider:
                 "temperature": 0.2,
                 "messages": [
                     {"role": "system", "content": system},
-                    {"role": "user", "content": user},
+                    {"role": "user", "content": _openai_content(user, images)},
                 ],
             },
             self._timeout,
@@ -200,14 +246,16 @@ class GeminiProvider:
         self._headers = {"x-goog-api-key": api_key, "content-type": "application/json"}
         self.host = urlsplit(base_url).hostname or ""
 
-    def complete(self, *, system: str, user: str, max_tokens: int) -> LLMResult:
+    def complete(
+        self, *, system: str, user: str, max_tokens: int, images: Sequence[ImageInput] | None = None
+    ) -> LLMResult:
         data = _post(
             self.name,
             self._url,
             self._headers,
             {
                 "systemInstruction": {"parts": [{"text": system}]},
-                "contents": [{"role": "user", "parts": [{"text": user}]}],
+                "contents": [{"role": "user", "parts": _gemini_parts(user, images)}],
                 # Gemini 2.5 models spend output tokens on hidden thinking; without headroom a
                 # short budget can come back empty. Length is still steered by the prompt.
                 "generationConfig": {"maxOutputTokens": max_tokens + 1024, "temperature": 0.2},
@@ -303,12 +351,17 @@ class FailoverProvider:
             ready = [m for m in self.members if self._stats[m.name].cooldown_until <= now]
         return ready or list(self.members)
 
-    def complete(self, *, system: str, user: str, max_tokens: int) -> LLMResult:
+    def complete(
+        self, *, system: str, user: str, max_tokens: int, images: Sequence[ImageInput] | None = None
+    ) -> LLMResult:
         attempted: list[str] = []
+        # Only pass `images` when there are some, so a member that predates image input keeps
+        # working for plain text.
+        extra = {"images": images} if images else {}
         for member in self._order():
             attempted.append(member.name)
             try:
-                result = member.complete(system=system, user=user, max_tokens=max_tokens)
+                result = member.complete(system=system, user=user, max_tokens=max_tokens, **extra)
             except Exception as exc:  # noqa: BLE001 - a vendor must never turn into a 500
                 if not isinstance(exc, LLMUnavailable):
                     exc = LLMUnavailable(f"{member.name} failed ({type(exc).__name__}).")
